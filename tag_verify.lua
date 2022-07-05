@@ -6,17 +6,9 @@ Enable tag system constraints and verification
 ]]
 
 local dt = require "darktable"
-local du = require "lib/dtutils"
-local gettext = dt.gettext
 local ps = require "tag_verify/parse"
 local rules = {}
 
-
-du.check_min_api_version("7.0.0", "select_untagged") 
-
-local function dump(x)
-  print(dt.debug.dump(x))
-end
 
 local function tag_string(image)
   tags = image.get_tags(image)
@@ -42,7 +34,6 @@ end
 
 local fmatch = ps.fmatch(get_tags, get_roll)
 local fsmatch = ps.fsmatch(get_tags, get_roll)
-local tprint = ps.tprint
 
 
 -- return data structure for script_manager
@@ -51,12 +42,6 @@ script_data.destroy = nil -- function to destory the script
 script_data.destroy_method = nil -- set to hide for libs since we can't destroy them commpletely yet, otherwise leave as nil
 script_data.restart = nil -- how to restart the (lib) script after it's been hidden - i.e. make it visible again
 
--- Tell gettext where to find the .mo file translating messages for a particular domain
-gettext.bindtextdomain("select_untagged",dt.configuration.config_dir.."/lua/locale/")
-
-local function _(msgid)
-  return gettext.dgettext("select_untagged", msgid)
-end
 
 local function stop_job(job)
   job.valid = false
@@ -80,7 +65,6 @@ return result
 end
 
 local function make_validate_image(rs,image)
-  print("called on "..image.filename)
   extra = {}
   for i,rule in ipairs(rs) do
     if (rule.apply_at(image)) then
@@ -163,15 +147,12 @@ end
 
 function update_combobox(c,t)
   local n = #c+1
-  print("adding \'"..t.."\' to combobox at "..n)
   c[n]=t
   c.selected=n
 end
   
 function clear_combobox(c)
-  print("clearing combobox")
   for i=#c,1,-1 do --have to go backwards
-    print("clearing at ".. i)
     c[i] = nil
   end
 end
@@ -266,22 +247,6 @@ local function add_entry()
 
 end
 
-function print_combo(c)
-  for i,t in ipairs(c) do
-    print(i.." : "..t)
-  end
-end
-
-local function debug ()
-  print("rules internal: length "..#rules)
-  tprint(rules)
-  print("rules pref:")
-  print(get_rules_raw())
-  print("combobox: length "..#rules_list)
-  print_combo(rules_list)
-  dt.print_toast("debugging")
-end
-
   local new_rule_box = dt.new_widget("box"){
     orientation = "horizontal",
     my_label,
@@ -320,7 +285,7 @@ populate_combobox(rules_list)
 end
 
 local function destroy()
-  dt.gui.libs.select.destroy_selection("select_untagged")
+  dt.gui.libs.select.destroy_selection("select_bad")
 end
 
 initialise()
@@ -330,9 +295,9 @@ initialise()
     },my_widget)
 
 dt.gui.libs.select.register_selection(
-  "select_untagged", "my select untagged",
+  "select_bad", "select badly tagged",
   select_untagged_images,
-  "select all images containing no tags or only tags added by darktable")
+  "select all images that do not pass the tag conditions")
 
 dt.preferences.register("tag_verify", "tag_rules", "string", "Tag Rules", "t", "")
 dt.register_event("update_hovered", "mouse-over-image-changed", on_hover)
