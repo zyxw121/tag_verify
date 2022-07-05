@@ -5,7 +5,7 @@ A darktable plugin for imposing tag constraints.
 
 1. Compile the lpeg module. The source may be found [here](http://www.inf.puc-rio.br/~roberto/lpeg/). Move the produced `lpeg.so` file into `tag_verify`.
 
-2. Optionally run tests with `lua test.lua`
+2. Optionally run tests with `lua test.lua` (requires the [lust](https://github.com/bjornbytes/lust) module)
 
 3. Identify your darktable config directory: [config]. This may be either `$HOME/.config/darktable`, or (if you have installed darktable via flatpack) `$HOME/.var/app/org.darktable.Darktable/config/darktable`.
 
