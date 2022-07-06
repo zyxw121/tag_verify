@@ -40,6 +40,19 @@ function roll(y)
 end
 
 
+local function tags_set(x)
+  local ts = {}
+  if (type(x)=="string") then
+    ts = split(x, ",")
+  else
+    for i,t in ipairs(tags(x)) do
+    ts[i]=t.name
+    end
+  end
+  table.sort(ts)
+  return ts
+end
+
 local tprint = p.tprint
 local with_name = p.with_name
 
@@ -57,7 +70,7 @@ local myi = function(t)
 end
 
 --terms are single letters, ints are ints. use for testing structure
-local tform = p.make_form(myt,myi)(tags,roll) *-1
+local tform = p.make_form(myt,myi, myt)(tags,roll) *-1
 local form = p.form(tags,roll)
 
 
@@ -83,6 +96,7 @@ describe('tag_verify', function()
       end
       expect(match("test")).to.exist()
       expect(match("te|st")).to_not.exist()
+      expect(match("te%")).to_not.exist()
       expect(match("120")).to.exist()
 --      expect(lpeg.match(p.tag_name_p, "t|")).to_not.exist()
     end)
@@ -100,16 +114,58 @@ describe('tag_verify', function()
       expect(match("\"a\"")(x)).to.equal(false)
     end)
 
+    it('tag_list', function()
+      local x = make_image("test,120,a|b")
+      local function match(text,i)
+        return lpeg.match("{"*p.tag_list(tags)*"}", text)
+      end
+      expect(match("{}")(x)).to.equal({})
+      expect(match("{\"x\"}")(x)).to.equal({"x"})
+      expect(match("{\"z\",\"y\",\"x\"}")(x)).to.equal({"x","y","z"})
+      expect(match("{  \"a|b\" , \"a|b|c\"   }")(x)).to.equal({"a|b","a|b|c"})
+    end)
+
+    it('sets', function()
+      local x = make_image("test,120,a|b,a|c,a|b|f,d|e")
+
+      local function match_set(text)
+        return lpeg.match(p.set_p(tags), text)
+      end
+
+      expect(match_set("\"d|%\"")).to.exist()
+      expect(match_set("\"%\"")).to.exist()
+      expect(match_set("\"test\"")).to.exist()
+
+      expect(match_set("\"%\"")(x)).to.equal(tags_set(x))
+      expect(match_set("\"d|%\"")(x)).to.equal(tags_set("d|e"))
+      expect(match_set("\"a|%\"")(x)).to.equal(tags_set("a|b,a|c,a|b|f"))
+      expect(match_set("\"a|b\"")(x)).to.equal(tags_set("a|b"))
+      expect(lpeg.match(q*p.set_p(tags)*q,"\"a|b%\"")).to_not.exist()
+--      expect(match_set("\"a|b%\"")(x)).to_not.exist()
+      expect(match_set("\"a\"")(x)).to.equal({})
+      expect(match_set("\"test\"")(x)).to.equal(tags_set("test"))
+      expect(match_set("{ \"tet\" }")(x)).to.equal(tags_set("tet"))
+      expect(match_set("{  \"a|b\" , \"a|b|c\"   }")(x)).to.equal({"a|b","a|b|c"})
+    end)
+
+    it('ints', function()
+      local x = make_image("test,120,a|b,a|c,a|b|f,d|e")
+
+      local function match(text)
+        return lpeg.match(p.iexpr(tags), text)
+      end
+        expect(match("100")(x)).to.equal(100)
+        expect(match("num({\"test\"})")(x)).to.equal(1)
+        expect(match("num({\"tst\"})")(x)).to.equal(1)
+        expect(match("num(\"test\")")(x)).to.equal(1)
+        expect(match("num(\"tst\")")(x)).to.equal(0)
+        expect(match("num(\"120\")")(x)).to.equal(1)
+        expect(match("num(\"10\")")(x)).to.equal(0)
+        expect(match("num(\"a|%\")")(x)).to.equal(3)
+
+    end)
     it('part_tag_path', function()
       local x = make_image("test,120,a|b,a|c,d|e")
-      local function tags_set(y)
-        local ts = {}
-        for i,t in ipairs(tags(x)) do
-          ts[i]=t.name
-        end
-        table.sort(ts)
-        return ts
-      end
       local function match_set(text)
         return lpeg.match(p.part_tag_path_p(tags), text)
       end
@@ -151,7 +207,16 @@ describe('tag_verify', function()
       expect(match("(2)")).to_not.exist()
       expect(match("if( a ,   ( a  )    and b)")).to.exist()
     end)
-
+    it('subset', function()
+      local a,b,c = 'a','b','c'
+      expect(p.subset({},{})).to.equal(true)
+      expect(p.subset({},{a})).to.equal(true)
+      expect(p.subset({a},{a})).to.equal(true)
+      expect(p.subset({a},{a,b})).to.equal(true)
+      expect(p.subset({a,b,c},{a,b})).to.equal(false)
+      expect(p.subset({a,c},{a,b})).to.equal(false)
+      expect(p.convert_set({a,c}) <= p.convert_set({a,b})).to.equal(false)
+    end)
 
     it('eq, leq, constants', function()
       local x = make_image("test,120,a|b,a|c,d|e")
@@ -170,6 +235,12 @@ describe('tag_verify', function()
       expect(match("leq(2,1)")(x)).to.equal(false)
       expect(match("true")(x)).to.equal(true)
       expect(match("false")(x)).to.equal(false)
+
+      expect(match("eq({\"d|e\"} ,\"d|%\" )")(x)).to.equal(true)
+      expect(match("eq({\"a|b\", \"a|c\"} ,\"a|%\" )")(x)).to.equal(true)
+      expect(match("subset( \"a|%\", {\"a|b\", \"a|c\" , \"a|x|y\"})")(x)).to.equal(true)
+
+
     end)
 
     it('roll', function()

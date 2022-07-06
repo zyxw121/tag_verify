@@ -9,7 +9,7 @@ parse.q = q
 local sep_p = lpeg.P("|")
 local locales = lpeg.locale()
 
-local tag_name_p = (locales["print"]-sep_p-q)^1 
+local tag_name_p = (locales["print"]-lpeg.S("|\"%{},"))^1 
 parse.tag_name_p = tag_name_p
 
 local w = lpeg.P' '^0
@@ -17,7 +17,33 @@ local w1 = lpeg.P' '^1
 
 
 
+parse.with_name = function (p)
+  local function make_x(name, f)
+    local x = {}
+    x.name=name
+    x.apply_at = f
+    return x
+  end
+  return lpeg.C(p) /make_x
+end
 
+
+parse.subset = function (a,b) --assume a,b are sorted tables
+  if (#a ==0) then return true end
+  if (#b == 0) then return false end
+  local i,j = 1,1
+  while (j<#b and i< #a and (a[i] >= b[j]) ) do
+    if (a[i]==b[j]) then i = i+1 end
+    j = j+1
+  end
+  return (a[i]<= b[j] and i==#a) --need >= for the a={} case
+end
+
+function parse.convert_set(table) 
+   return setmetatable(table, {__le = parse.subset})
+end
+
+local convert_set = parse.convert_set
 function parse.set_part_tag(get_tags)
   return function (t)
   return function (x)
@@ -29,7 +55,7 @@ function parse.set_part_tag(get_tags)
       end
     end
     table.sort(matches)
-    return matches
+    return convert_set(matches)
   end
   end
 end
@@ -44,7 +70,6 @@ end
 function parse.interpret_tag(get_tags) --returns true iff x has tag t. needs to match completely
   return function (t)
   return function (x)
---    print(t)
     local tags =  get_tags(x)
     for _,tag in ipairs(tags) do
       if lpeg.match(lpeg.P(t)*-1,tag.name) then
@@ -76,11 +101,48 @@ parse.part_tag_path_p = function(tags)
   return lpeg.C((tag_name_p *sep_p)^0) *"%" /  parse.set_part_tag(tags) --/ higher_set_to_num
 end
 
---iexpr is: int  or "tag|tag|%"
-parse.iexpr_p = function(tags)
-  return parse.int_p
-  + q*parse.part_tag_path_p(tags) / parse.higher_set_to_num *q
+function tags_from_table(t)
+--  print("called")
+--  print(t)
+--  tprint(t)
+  return function (x)
+    table.sort(t)
+    return convert_set(t)
+  end
 end
+
+
+parse.tag_list = function(tags)
+  local tag = q*lpeg.C( (tag_name_p *sep_p)^0*tag_name_p   )*q
+  return  lpeg.Ct(w*(tag *w*","*w)^0 *tag*w + w ) / tags_from_table
+end
+
+parse._set_p = function(tags)
+  local tag = parse.tag_name_p
+  local function f(p)
+    return p * - lpeg.P(1)
+  end
+  return  ((tag * sep_p)^0 *tag / f / parse.set_part_tag(tags))
+    +  (tag*sep_p)^0 / parse.set_part_tag(tags) *lpeg.P"%"
+    + "{"*parse.tag_list(tags) *"}" 
+end
+parse.set_p = function(tags)
+  local tag = parse.tag_name_p
+  local function f(p)
+    return p * - lpeg.P(1)
+  end
+  return  q*( lpeg.C( (tag * sep_p)^0 *tag) / f / parse.set_part_tag(tags)) *q
+    +  q*lpeg.C((tag*sep_p)^0) / parse.set_part_tag(tags) *lpeg.P"%"*q
+    + "{"*parse.tag_list(tags) *"}" 
+end
+
+--iexpr is: int  or "tag|tag|%"
+parse.iexpr = function(tags)
+  return parse.int_p
+  + "num("*w* parse.set_p(tags) *w*")"/ parse.higher_set_to_num 
+end
+
+
 
 
 local function make_eq(i,j)
@@ -149,18 +211,31 @@ local function make_roll(get_roll,get_tags)
 end
 end
 
-local myint = parse.iexpr_p
+parse.iexpr_p = function(tags)
+  return parse.int_p
+  + "num("*w* q*parse.set_p(tags)*q *w*")"/ parse.higher_set_to_num 
+end
+
+local myset = parse.set_p
+
+
+local myint = function(tags)
+  return parse.int_p
+  + "num(" *lpeg.V"S" *")"
+end
 
 local myterm = function(tags,roll)
   return "eq(" *lpeg.V"CI" * ")" /make_eq
     + "leq(" *lpeg.V"CI" * ")" /make_leq
+    + "eq(" *lpeg.V"CS" * ")" /make_leq
+    + "subset(" *lpeg.V"CS" * ")" /make_leq --add set comparison
     + lpeg.P"true" / make_true
     + lpeg.P"false" / make_false
-    + parse.q_tag_path_p(tags)
+    --+ parse.q_tag_path_p(tags)
     + "roll(" * parse.part_tag_path_p(tags) *")" /make_roll(roll,tags)
 end
 
-parse.make_form = function(term,int)
+parse.make_form = function(term,int,set)
   return function (tags, roll) 
   return lpeg.P{
   "F";
@@ -170,6 +245,7 @@ parse.make_form = function(term,int)
     + "if(" *lpeg.V"CC" *")"/make_if
     + lpeg.V"FT",
   CI = w*lpeg.V"I" *w*","*w*lpeg.V"I"*w, --pair of two ints
+  CS = w*lpeg.V"S" *w*","*w*lpeg.V"S"*w, --pair of two sets 
   C = w*lpeg.V"F" *w,
   CC = w*lpeg.V"F" *w*","*w*lpeg.V"F"*w, --pair of two forms
   FT = lpeg.V"BF"+ lpeg.V"T", --bracketed formula or term
@@ -177,29 +253,21 @@ parse.make_form = function(term,int)
   FL = lpeg.V"FT" * w1 + lpeg.V"BF", 
   FR = w1 *lpeg.V"FT" + lpeg.V"BF",
   T = term(tags,roll),
+  S = set(tags),
   I = int(tags)
 }
 end
 end
 
-parse.with_name = function (p)
-  local function make_x(name, f)
-    local x = {}
-    x.name=name
-    x.apply_at = f
-    return x
-  end
-  return lpeg.C(p) /make_x
-end
 
-parse._form = parse.make_form(myterm,myint) --for internal use
+parse._form = parse.make_form(myterm,myint,myset) --for internal use
 
 parse.form = function(tags,roll) --requires the entire input to be a valid formula
-  return parse.make_form(myterm, myint)(tags,roll) *-1
+  return parse.make_form(myterm, myint,myset)(tags,roll) *-1
 end
 
 parse.named_form = function(tags,roll) --requires the entire input to be a valid formula
-  return parse.with_name(parse.make_form(myterm, myint)(tags,roll) *-1)
+  return parse.with_name(parse.make_form(myterm, myint,myset)(tags,roll) *-1)
 
 end
 parse.make_list = function(p)
