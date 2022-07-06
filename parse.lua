@@ -66,6 +66,12 @@ return function(x)
 end
 end
 
+function inhabited(s)
+  return function(x)
+    return (#(s(x)) >=1)
+  end
+end
+
 
 function parse.interpret_tag(get_tags) --returns true iff x has tag t. needs to match completely
   return function (t)
@@ -80,6 +86,32 @@ function parse.interpret_tag(get_tags) --returns true iff x has tag t. needs to 
   end
 end
 end
+
+function parse.prefix(t1,t2) 
+  if lpeg.match(t1*sep_p, t2) then return true
+  else return false
+  end
+end
+
+
+function parse.consolidate_set(s)
+  local i = 1
+  while (i< #s) do
+    if parse.prefix(s[i], s[i+1]) then table.remove(s,i) 
+    else i = i+1
+    end
+  end
+  return s
+end
+
+
+function higher_consolidate(t)
+  return function(x)
+    return parse.consolidate_set(t(x))
+  end
+end
+
+
 
 function parse.interpret_int(t)
   return function (x)
@@ -131,9 +163,9 @@ parse.set_p = function(tags)
   local function f(p)
     return p * - lpeg.P(1)
   end
-  return  q*( lpeg.C( (tag * sep_p)^0 *tag) / f / parse.set_part_tag(tags)) *q
+  return  (q*( lpeg.C( (tag * sep_p)^0 *tag) / f / parse.set_part_tag(tags)) *q
     +  q*lpeg.C((tag*sep_p)^0) / parse.set_part_tag(tags) *lpeg.P"%"*q
-    + "{"*parse.tag_list(tags) *"}" 
+    + "{"*parse.tag_list(tags) *"}" ) / higher_consolidate
 end
 
 --iexpr is: int  or "tag|tag|%"
