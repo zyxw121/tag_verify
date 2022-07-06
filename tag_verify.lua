@@ -16,6 +16,7 @@ local function tag_string(image)
   for _,t in ipairs(tags) do
     ts = ts .. t.name ..", "
   end
+  table.sort(ts)
   return ts
 end
 
@@ -64,14 +65,35 @@ result["fails"] = fails
 return result
 end
 
+local function set_to_string(set)
+  if (#set == 0) then return "" end
+    
+  local str = set[1]
+  for i=2,#set,1 do
+    str = str .. ", " .. set[i]
+  end
+  return str
+end
+
+local function apply_rule(r,image)
+  if r["sort"] == "form" then
+    if r.apply_at(image) then return " ✓"
+    else return " ❌"
+    end
+  end
+  if r["sort"] == "int" then
+    return " " .. r.apply_at(image)
+  end
+  if r["sort"] == "set" then
+    local set = r.apply_at(image)
+    return " {" .. set_to_string(set) .. "}"
+  end
+end
+
 local function make_validate_image(rs,image)
   extra = {}
   for i,rule in ipairs(rs) do
-    if (rule.apply_at(image)) then
-      extra[i] = " passed"
-    else
-      extra[i] = " failed"
-    end
+    extra[i] = apply_rule(rule,image)
   end
   return extra
 end
@@ -158,7 +180,7 @@ function clear_combobox(c)
 end
 
 local my_label = dt.new_widget("label"){label = "new rule:"}
-local status_label = dt.new_widget("label"){label = "status:"}
+local status_label = dt.new_widget("label"){label = ""}
 local current_image = dt.new_widget("label"){label = ""}
 
 
@@ -210,7 +232,9 @@ local function delete_entry()
   populate_combobox(rules_list)
 
 end
+
 local delete_button = dt.new_widget("button"){label = "delete", clicked_callback = delete_entry}
+
 local function on_hover(event, image)
   local extra = nil
   local text = ""
@@ -224,6 +248,12 @@ local function on_hover(event, image)
   update_text_list(rules_list_text, extra)
 end
 
+local function edit_entry(self)
+--  self.label = 
+
+end
+
+local edit_button = dt.new_widget("button"){label = "edit", clicked_callback = edit_entry}
 
 local function add_entry()
   local t = my_entry.text
@@ -257,6 +287,7 @@ end
   local select_rule_box = dt.new_widget("box"){
     orientation = "horizontal",
     rules_list,
+    edit_button,
     delete_button
   }
 
@@ -281,7 +312,7 @@ rules = get_rules()
 
 populate_combobox(rules_list)
   update_text_list(rules_list_text)
-
+ps.tprint(rules)
 end
 
 local function destroy()

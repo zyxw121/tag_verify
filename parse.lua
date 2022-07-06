@@ -17,14 +17,18 @@ local w1 = lpeg.P' '^1
 
 
 
-parse.with_name = function (p)
+
+parse.with_name = function(t)
+  return function (p)
   local function make_x(name, f)
     local x = {}
     x.name=name
     x.apply_at = f
+    x.sort = t
     return x
   end
   return lpeg.C(p) /make_x
+end
 end
 
 
@@ -250,10 +254,14 @@ end
 
 local myset = parse.set_p
 
+local myint1 = function(tags)
+  return parse.int_p
+  + "num(" * myset(tags) / parse.higher_set_to_num *")"
+end
 
 local myint = function(tags)
   return parse.int_p
-  + "num(" *lpeg.V"S" *")"
+  + "num(" *lpeg.V"S" / parse.higher_set_to_num *")"
 end
 
 local myterm = function(tags,roll)
@@ -263,8 +271,8 @@ local myterm = function(tags,roll)
     + "subset(" *lpeg.V"CS" * ")" /make_leq --add set comparison
     + lpeg.P"true" / make_true
     + lpeg.P"false" / make_false
-    --+ parse.q_tag_path_p(tags)
-    + "roll(" * parse.part_tag_path_p(tags) *")" /make_roll(roll,tags)
+    + parse.set_p(tags) / inhabited
+    + "roll(" * parse.set_p(tags) *")" /make_roll(roll,tags)
 end
 
 parse.make_form = function(term,int,set)
@@ -292,6 +300,7 @@ end
 end
 
 
+
 parse._form = parse.make_form(myterm,myint,myset) --for internal use
 
 parse.form = function(tags,roll) --requires the entire input to be a valid formula
@@ -299,15 +308,27 @@ parse.form = function(tags,roll) --requires the entire input to be a valid formu
 end
 
 parse.named_form = function(tags,roll) --requires the entire input to be a valid formula
-  return parse.with_name(parse.make_form(myterm, myint,myset)(tags,roll) *-1)
+  return parse.with_name("form")(parse.make_form(myterm, myint,myset)(tags,roll) *-1)
 
 end
 parse.make_list = function(p)
   return lpeg.Ct(w*p*w*(w*","*w*p)^0)
 end
 
+parse.expression = function(tags,roll)
+  local f = parse.with_name("form")(parse._form(tags,roll))
+  local s = parse.with_name("set")(myset(tags))
+  local i = parse.with_name("int")(myint1(tags))
+  return s+i+f
+end
+
+parse.list_expr = function(tags,roll)
+  local expr = parse.expression(tags, roll)
+  return parse.make_list(expr)
+end
+
 parse.list_form = function(tags,roll)
-  local form = parse.with_name(parse._form(tags,roll))
+  local form = parse.with_name("form")(parse._form(tags,roll))
   return parse.make_list(form) 
 end
 
@@ -320,11 +341,13 @@ end
 parse.wrap_match = wrap_match
 
 parse.fmatch = function(tags, roll)
-    return wrap_match(parse.named_form(tags, roll))
+    return wrap_match(parse.expression(tags, roll)*-1)
+--    return wrap_match(parse.named_form(tags, roll))
 end
 
 parse.fsmatch = function(tags,roll)
-    return wrap_match(parse.list_form(tags,roll))
+    return wrap_match(parse.list_expr(tags,roll))
+--    return wrap_match(parse.list_form(tags,roll))
 end
 
 
