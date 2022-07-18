@@ -51,11 +51,14 @@ parse.subset = function (a,b) --assume a,b are sorted tables
   if (#a ==0) then return true end
   if (#b == 0) then return false end
   local i,j = 1,1
-  while (j<#b and i< #a and (a[i] >= b[j]) ) do
+  --loop invariant: a[1..i) is a subset of b[1..j)
+  --terminates when one array is fully traversed.
+  --if it is a, then every element in a has been found in b
+  while (j<=#b and i<= #a and (a[i] >= b[j]) ) do
     if (a[i]==b[j]) then i = i+1 end
     j = j+1
   end
-  return (a[i]<= b[j] and i==#a) --need >= for the a={} case
+  return (i==(#a+1))
 end
 
 function parse.convert_set(table) 
@@ -156,16 +159,13 @@ parse.make_list = function(p) --returns a non-empty list of ps
   return lpeg.Ct(w*p*w*(w*","*w*p*w)^0)
 end
 
+parse.make_list0 = function(p) --returns a potentially empty list of ps
+  return lpeg.Ct(w*p*w*(w*","*w*p*w)^0 + w)
+end
 
 local q_tag = quoted(lpeg.C( (tag_name_p *sep_p)^0*tag_name_p))
-parse.q_tag_list1 = parse.make_list(q_tag) / tags_from_table
+parse.q_tag_list = parse.make_list0(q_tag) / tags_from_table
   
-
-
-parse.q_tag_list = function(tags)
-  local tag = quoted(lpeg.C( (tag_name_p *sep_p)^0*tag_name_p))
-  return  lpeg.Ct(w*(tag *w*","*w)^0 *tag*w + w ) / tags_from_table
-end
 
 function parse.term(p)
   return p * - lpeg.P(1)
@@ -174,7 +174,7 @@ end
 parse.set_p = function(tags)
   return  (quoted(parse.tag_path_p / parse.term / parse.tag_set(tags))
     +  quoted(parse.part_tag_path_p / parse.tag_set(tags))
-    + "{"*parse.q_tag_list1 *"}" ) /higher_consolidate
+    + "{"*parse.q_tag_list *"}" ) /higher_consolidate
 end
 
 
@@ -330,7 +330,8 @@ local make_set = function(set)
   S = "union("* w*lpeg.V"S" *w*","*w*lpeg.V"S"*w*")" / make_union
     + lpeg.V"SL" * "setor" *lpeg.V"SR" /make_union
     + lpeg.V"SL" * "setand" *lpeg.V"SR" /make_intersection
-    + lpeg.V"ST",
+    + lpeg.V"ST"
+    + "set(" *lpeg.V"S" *")",
   SL = lpeg.V"ST" * w1 + lpeg.V"BS", 
   CS = w*lpeg.V"S" *w*","*w*lpeg.V"S"*w, --pair of two sets 
   SR = w1 *lpeg.V"ST" + lpeg.V"BS",
