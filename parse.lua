@@ -2,6 +2,21 @@ local parse = {}
 
 local lpeg = require "lpeg"
 
+function parse.tprint (tbl, indent)
+  if not indent then indent = 0 end
+  local empty = true
+  for k, v in pairs(tbl) do
+    empty = false
+    formatting = string.rep("  ", indent) .. k .. ": "
+    if type(v) == "table" then
+      print(formatting)
+      parse.tprint(v, indent+1)
+    else
+      print(formatting .. tostring(v))
+    end
+  end
+  if (empty) then print("empty table") end
+end
 
 local q =  lpeg.P'\"'
 parse.q = q
@@ -48,7 +63,9 @@ function parse.convert_set(table)
 end
 
 local convert_set = parse.convert_set
-function parse.set_part_tag(get_tags)
+
+
+function parse.tag_set(get_tags)
   return function (t)
   return function (x)
     local tags =  get_tags(x)
@@ -77,22 +94,10 @@ function inhabited(s)
 end
 
 
-function parse.interpret_tag(get_tags) --returns true iff x has tag t. needs to match completely
-  return function (t)
-  return function (x)
-    local tags =  get_tags(x)
-    for _,tag in ipairs(tags) do
-      if lpeg.match(lpeg.P(t)*-1,tag.name) then
-        return true
-      end
-    end
-    return false
-  end
-end
-end
+parse.inhabited = inhabited
 
 function parse.prefix(t1,t2) 
-  if lpeg.match(t1*sep_p, t2) then return true
+  if lpeg.match(t1, t2) then return true
   else return false
   end
 end
@@ -123,19 +128,19 @@ function parse.interpret_int(t)
   end
 end
 
+function quoted(p)
+  return q*p*q
+end
+
 
 parse.int_p = lpeg.C(lpeg.R"09"^1) / parse.interpret_int
 
-parse.tag_path_p = function(tags)--can't have the *-1 to allow for quotes. don't use this raw.
-  return lpeg.C(((tag_name_p * sep_p)^0 * tag_name_p)) /parse.interpret_tag(tags) 
-end
-parse.q_tag_path_p = function(tags)--can't have the *-1 to allow for quotes
-  return q* parse.tag_path_p(tags) *q 
-end
+parse.tag_path_p =  lpeg.C((tag_name_p * sep_p)^0 * tag_name_p)
 
-parse.part_tag_path_p = function(tags) 
-  return lpeg.C((tag_name_p *sep_p)^0) *"%" /  parse.set_part_tag(tags) --/ higher_set_to_num
-end
+
+parse.q_tag_path_p = quoted(parse.tag_path_p)
+
+parse.part_tag_path_p = lpeg.C((tag_name_p *sep_p)^0) *"%" 
 
 function tags_from_table(t)
 --  print("called")
@@ -147,29 +152,41 @@ function tags_from_table(t)
   end
 end
 
+parse.make_list = function(p) --returns a non-empty list of ps
+  return lpeg.Ct(w*p*w*(w*","*w*p*w)^0)
+end
 
-parse.tag_list = function(tags)
-  local tag = q*lpeg.C( (tag_name_p *sep_p)^0*tag_name_p   )*q
+
+local q_tag = quoted(lpeg.C( (tag_name_p *sep_p)^0*tag_name_p))
+parse.q_tag_list1 = parse.make_list(q_tag) / tags_from_table
+  
+
+
+parse.q_tag_list = function(tags)
+  local tag = quoted(lpeg.C( (tag_name_p *sep_p)^0*tag_name_p))
   return  lpeg.Ct(w*(tag *w*","*w)^0 *tag*w + w ) / tags_from_table
 end
 
-parse._set_p = function(tags)
-  local tag = parse.tag_name_p
-  local function f(p)
-    return p * - lpeg.P(1)
-  end
-  return  ((tag * sep_p)^0 *tag / f / parse.set_part_tag(tags))
-    +  (tag*sep_p)^0 / parse.set_part_tag(tags) *lpeg.P"%"
-    + "{"*parse.tag_list(tags) *"}" 
+function parse.term(p)
+  return p * - lpeg.P(1)
 end
+
 parse.set_p = function(tags)
+  return  (quoted(parse.tag_path_p / parse.term / parse.tag_set(tags))
+    +  quoted(parse.part_tag_path_p / parse.tag_set(tags))
+    + "{"*parse.q_tag_list1 *"}" ) /higher_consolidate
+end
+
+
+
+parse.set_p1 = function(tags)
   local tag = parse.tag_name_p
   local function f(p)
     return p * - lpeg.P(1)
   end
-  return  (q*( lpeg.C( (tag * sep_p)^0 *tag) / f / parse.set_part_tag(tags)) *q
-    +  q*lpeg.C((tag*sep_p)^0) / parse.set_part_tag(tags) *lpeg.P"%"*q
-    + "{"*parse.tag_list(tags) *"}" ) / higher_consolidate
+  return  (q*( lpeg.C( (tag * sep_p)^0 *tag) / f / parse.tag_set(tags)) *q
+    +  q*lpeg.C((tag*sep_p)^0) / parse.tag_set(tags) *lpeg.P"%"*q
+    + "{"*parse.q_tag_list(tags) *"}" ) / higher_consolidate
 end
 
 --iexpr is: int  or "tag|tag|%"
@@ -201,6 +218,11 @@ local function make_not(f)
     return not f(x) 
   end
 end
+local function make_xor(f,g)
+  return function (x)
+    return (f(x) or g(x)) and ((not g(x)) or (not f(x)))
+  end
+end
 local function make_and(f,g)
   return function (x)
     return f(x) and g(x)
@@ -222,6 +244,51 @@ local function make_false ()
   end
 end
 
+parse.union = function(s,t)
+    for _,y in ipairs(t) do
+      table.insert(s,y)
+    end
+    table.sort(s)
+    return parse.consolidate_set(s)
+end
+
+local function make_union(s,t)
+--  print("union of:")
+--  tprint(s(x))
+--  tprint(t(x))
+  return function (x)
+    return parse.union(s(x),t(x))
+  end
+end
+
+parse.make_union = make_union
+
+function parse.intersect(s,t)
+    local i,j = 1,1
+    while (i <=#s and j <= #t) do
+      local a,b = s[i], t[j]
+      if (a==b) then 
+        i = i+1
+        j = j+1
+      end
+      if(a < b) then
+        table.remove(s,i)       
+      else
+        table.remove(t,j)
+      end
+    end
+    if (i > #s) then
+      return parse.consolidate_set(s)
+    else
+      return parse.consolidate_set(t)
+    end
+end
+
+local function make_intersection(s,t)
+  return function (x)
+    return parse.intersect(s(x),t(x))
+  end
+end
 
 local function sorted_sets_unequal(a,b)
   if not (#a==#b) then return true end
@@ -252,7 +319,30 @@ parse.iexpr_p = function(tags)
   + "num("*w* q*parse.set_p(tags)*q *w*")"/ parse.higher_set_to_num 
 end
 
-local myset = parse.set_p
+local myset1 = parse.set_p
+
+
+
+local make_set = function(set)
+  return function(tags)
+  return lpeg.P{
+    "S";
+  S = "union("* w*lpeg.V"S" *w*","*w*lpeg.V"S"*w*")" / make_union
+    + lpeg.V"SL" * "setor" *lpeg.V"SR" /make_union
+    + lpeg.V"SL" * "setand" *lpeg.V"SR" /make_intersection
+    + lpeg.V"ST",
+  SL = lpeg.V"ST" * w1 + lpeg.V"BS", 
+  CS = w*lpeg.V"S" *w*","*w*lpeg.V"S"*w, --pair of two sets 
+  SR = w1 *lpeg.V"ST" + lpeg.V"BS",
+  ST = lpeg.V"BS" + lpeg.V"PS", --bracketed set
+  BS = "(" * w*lpeg.V"S"*w *")", 
+  PS= set(tags),
+  }
+end
+end
+
+local myset = make_set(myset1)
+parse.myset = myset
 
 local myint1 = function(tags)
   return parse.int_p
@@ -275,6 +365,12 @@ local myterm = function(tags,roll)
     + "roll(" * parse.set_p(tags) *")" /make_roll(roll,tags)
 end
 
+local function myf(s,t)
+  print("s "..s)
+  print("t "..t)
+end
+
+
 parse.make_form = function(term,int,set)
   return function (tags, roll) 
   return lpeg.P{
@@ -282,6 +378,7 @@ parse.make_form = function(term,int,set)
   F = lpeg.V"FL" * "or" *lpeg.V"FR" /make_or 
     + "not" *lpeg.V"FR" /make_not
     + lpeg.V"FL" *"and" *lpeg.V"FR"/make_and 
+    + lpeg.V"FL" *"xor" *lpeg.V"FR"/make_xor 
     + "if(" *lpeg.V"CC" *")"/make_if
     + lpeg.V"FT",
   CI = w*lpeg.V"I" *w*","*w*lpeg.V"I"*w, --pair of two ints
@@ -292,8 +389,8 @@ parse.make_form = function(term,int,set)
   BF = "(" * w*lpeg.V"F"*w *")", 
   FL = lpeg.V"FT" * w1 + lpeg.V"BF", 
   FR = w1 *lpeg.V"FT" + lpeg.V"BF",
-  T = term(tags,roll),
   S = set(tags),
+  T = term(tags,roll),
   I = int(tags)
 }
 end
@@ -311,13 +408,10 @@ parse.named_form = function(tags,roll) --requires the entire input to be a valid
   return parse.with_name("form")(parse.make_form(myterm, myint,myset)(tags,roll) *-1)
 
 end
-parse.make_list = function(p)
-  return lpeg.Ct(w*p*w*(w*","*w*p)^0)
-end
 
 parse.expression = function(tags,roll)
   local f = parse.with_name("form")(parse._form(tags,roll))
-  local s = parse.with_name("set")(myset(tags))
+  local s = parse.with_name("set")(myset1(tags))
   local i = parse.with_name("int")(myint1(tags))
   return s+i+f
 end
@@ -340,28 +434,20 @@ end
 
 parse.wrap_match = wrap_match
 
-parse.fmatch = function(tags, roll)
+parse.ematch = function(tags, roll)
     return wrap_match(parse.expression(tags, roll)*-1)
---    return wrap_match(parse.named_form(tags, roll))
+end
+parse.fmatch = function(tags, roll)
+    return wrap_match(parse.named_form(tags, roll))
 end
 
-parse.fsmatch = function(tags,roll)
+parse.esmatch = function(tags,roll)
     return wrap_match(parse.list_expr(tags,roll))
---    return wrap_match(parse.list_form(tags,roll))
+end
+parse.fsmatch = function(tags,roll)
+    return wrap_match(parse.list_form(tags,roll))
 end
 
 
-function parse.tprint (tbl, indent)
-  if not indent then indent = 0 end
-  for k, v in pairs(tbl) do
-    formatting = string.rep("  ", indent) .. k .. ": "
-    if type(v) == "table" then
-      print(formatting)
-      parse.tprint(v, indent+1)
-    else
-      print(formatting .. tostring(v))
-    end
-  end
-end
 
 return parse

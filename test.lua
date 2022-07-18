@@ -72,6 +72,10 @@ end
 --terms are single letters, ints are ints. use for testing structure
 local tform = p.make_form(myt,myi, myt)(tags,roll) *-1
 local form = p.form(tags,roll)
+local expr = p.expression(tags,roll)
+
+local fmatch = p.fmatch(tags,roll)
+local ematch = p.ematch(tags,roll)
 
 
 describe('tag_verify', function()
@@ -104,7 +108,7 @@ describe('tag_verify', function()
     it('tag_path', function()
       local x = make_image("test,120,a|b")
       local function match(text,i)
-        return lpeg.match(p.q_tag_path_p(tags), text)
+        return lpeg.match(p.q_tag_path_p/p.term/p.tag_set(tags)/p.inhabited, text)
       end
       expect(match("\"1\"")(x)).to.equal(false)
       expect(match("\"120\"")(x)).to.equal(true)
@@ -117,7 +121,7 @@ describe('tag_verify', function()
     it('tag_list', function()
       local x = make_image("test,120,a|b")
       local function match(text,i)
-        return lpeg.match("{"*p.tag_list(tags)*"}", text)
+        return lpeg.match("{"*p.q_tag_list(tags)*"}", text)
       end
       expect(match("{}")(x)).to.equal({})
       expect(match("{\"x\"}")(x)).to.equal({"x"})
@@ -131,22 +135,29 @@ describe('tag_verify', function()
       local function match_set(text)
         return lpeg.match(p.set_p(tags), text)
       end
+      local function _match_set(text)
+        return lpeg.match(p.with_name("set")(p.set_p(tags)), text)
+      end
 
+      expect(p.consolidate_set(tags_set("a,a"))).to.equal(tags_set("a"))
+      expect(p.consolidate_set(tags_set("a,a|b"))).to.equal(tags_set("a|b"))
       expect(p.prefix("a","a|b")).to.equal(true)
-      expect(p.prefix("a|b","a|b")).to.equal(false)
+      expect(p.prefix("a|b","a|b")).to.equal(true)
       expect(p.prefix("a|b","a|b|c")).to.equal(true)
       expect(p.prefix("a|b|c","a|b")).to.equal(false)
 
-      expect(p.consolidate_set(match_set("\"a|%\"")(x))).to.equal(tags_set("a|c,a|b|f"))
+--      expect(p.consolidate_set(match_set("\"a|%\"")(x))).to.equal(tags_set("a|c,a|b|f"))
 
       expect(match_set("\"d|%\"")).to.exist()
       expect(match_set("\"%\"")).to.exist()
       expect(match_set("\"test\"")).to.exist()
 
---      expect(match_set("\"%\"")(x)).to.equal(tags_set("a|c,a|b|f,test,120,d|e"))
+--      tprint(_match_set("\"%\"").apply_at(x))
+      expect(match_set("\"%\"")(x)).to.equal(tags_set("a|c,a|b|f,test,120,d|e,Camera|Nikon F5"))
       expect(match_set("\"d|%\"")(x)).to.equal(tags_set("d|e"))
-      tprint(match_set("\"Camera|%\"")(x))
-      expect(match_set("\"a|%\"")(x)).to.equal(tags_set("a|c,a|b|f"))
+      expect(match_set("\"Camera|%\"")(x)).to.exist()
+--      tprint(match_set("\"a|%\"")(x))
+--      tprint(_match_set("\"a|%\"").apply_at(x))
       expect(match_set("\"a|b\"")(x)).to.equal(tags_set("a|b"))
       expect(lpeg.match(q*p.set_p(tags)*q,"\"a|b%\"")).to_not.exist()
 --      expect(match_set("\"a|b%\"")(x)).to_not.exist()
@@ -175,10 +186,10 @@ describe('tag_verify', function()
     it('part_tag_path', function()
       local x = make_image("test,120,a|b,a|c,d|e")
       local function match_set(text)
-        return lpeg.match(p.part_tag_path_p(tags), text)
+        return lpeg.match(p.part_tag_path_p / p.tag_set(tags), text)
       end
       local function match_num(text)
-        return lpeg.match(p.part_tag_path_p(tags) / p.higher_set_to_num, text)
+        return lpeg.match(p.part_tag_path_p /p.tag_set(tags) / p.higher_set_to_num, text)
       end
       expect(match_num("d|%")).to.exist()
       expect(match_num("d|%")(x)).to.equal(1)
@@ -228,6 +239,9 @@ describe('tag_verify', function()
 
     it('eq, leq, constants', function()
       local x = make_image("test,120,a|b,a|c,d|e")
+      local function ematch(text)
+        return lpeg.match(expr, text)
+      end
       local function match(text)
         return lpeg.match(form, text)
       end
@@ -249,7 +263,75 @@ describe('tag_verify', function()
       expect(match("eq({\"a|b\", \"a|c\"} ,\"a|%\" )")(x)).to.equal(true)
       expect(match("subset( \"a|%\", {\"a|b\", \"a|c\" , \"a|x|y\"})")(x)).to.equal(true)
 
+      local a,b,c = 'a','b','c'
 
+
+      local myp = p.myset-- lpeg.P"union("*p.set_p(tags)*lpeg.P","*p.set_p(tags)*lpeg.P")" / p.make_union
+
+--      tprint(lpeg.match(p.myset(tags), "({\"a\", \"b\"})")(x))
+--      tprint(lpeg.match(p.with_name("set")(p.myset(tags)), "\"a\"").apply_at(x))
+ --     tprint(p.union({a},{b}))
+
+
+ local charlist = p.make_list(lpeg.C(lpeg.R"az"))
+
+ --       tprint(lpeg.match(charlist, "a,v,c"))
+
+ local myset = "{" *charlist*"}" 
+
+local function union(s,t)
+ -- tprint(s)
+--  tprint(t)
+  return p.union(s,t)
+end
+
+  
+
+ local myset1 = lpeg.P{
+   "S";
+   S = "union(" *lpeg.V"T"*","* lpeg.V"T" *")" / union
+   + lpeg.V"T",
+   T = myset,
+
+ }
+
+ local myset3 = lpeg.P{
+   "S";
+   S = "union(" *lpeg.V"T"*","* lpeg.V"T" *")" / union,
+   T = myset,
+
+ }
+ local myset2 = "union("*myset*","*myset*")" /p.union
+-- print("test1")
+ --       tprint(lpeg.match(myset1, "{a}"))
+
+   --     tprint(lpeg.match(myset1, "{b,c}"))
+--        tprint(union(lpeg.match(myset, "{a}"), lpeg.match(myset, "{b,c}")))
+
+
+--      tprint(fmatch("\"a\""))
+--      tprint(ematch("\"a\""))
+--      tprint(fmatch("{\"a\"}"))
+--      tprint(lpeg.match(myset2, "union({b},{a})"))
+--      tprint(lpeg.match(myset3, "union({b},{a})"))
+ --     tprint(lpeg.match(myset1, "union({b},{a})"))
+
+
+      expect(lpeg.match(p.myset(tags), "union({\"b\"},{\"a\"})")(x)).to.equal(tags_set("a,b"))
+      expect(lpeg.match(p.myset(tags), "{\"b\"} setor {\"a\"}")(x)).to.equal(tags_set("a,b"))
+      expect(lpeg.match(p.myset(tags), "{\"a\"} setor {\"a\"}")(x)).to.equal(tags_set("a"))
+      expect(lpeg.match(p.myset(tags), "{\"a\"} setor {\"b\",  \"a\"}")(x)).to.equal(tags_set("a,b"))
+
+      local A = tags_set("a")
+      local B = tags_set("b")
+
+--      tprint(p.intersect(A,B))
+--      tprint(p.intersect(B,A))
+
+--      tprint(lpeg.match(p.myset(tags), "{\"b\"} setand {\"a\"}")(x))
+      expect(lpeg.match(p.myset(tags), "{\"b\"} setand {\"a\"}")(x)).to.equal({})
+      expect(lpeg.match(p.myset(tags), "{\"b\" , \"a\"} setand {\"a\"}")(x)).to.equal(tags_set("a"))
+      expect(lpeg.match(p.myset(tags), "{\"b\" , \"a\"} setand {\"a\"  , \"c\"}")(x)).to.equal(tags_set("a"))
     end)
 
     it('roll', function()
@@ -257,7 +339,8 @@ describe('tag_verify', function()
       local y = make_image("test,120,a|b,a|c,d|f")
       x.add_to_roll(y)
       local function match(text)
-        return lpeg.match(form, text)
+        --return lpeg.match(form, text)
+        return p.fmatch(tags,roll)(text).apply_at
       end
       expect(match("roll(\"a|%\")")).to.exist()
       expect(match("roll(\"a|%\")")(x)).to.exist()
@@ -281,9 +364,8 @@ describe('tag_verify', function()
       end
       expect(match("false")[1].name).to.equal("false")
       expect(match("1")[1].name).to.equal("1")
-      print(p.fmatch(tags,roll)("1"))
-      tprint(p.fmatch(tags,roll)("1"))
-      expect(p.fmatch(tags,roll)("1")[1].name).to.equal("1")
+--      tprint(p.ematch(tags,roll)("1"))
+      expect(p.esmatch(tags,roll)("1")[1].name).to.equal("1")
       expect(match("1")[1].sort).to.equal("int")
       
 
