@@ -155,12 +155,14 @@ function tags_from_table(t)
   end
 end
 
-parse.make_list = function(p) --returns a non-empty list of ps
-  return lpeg.Ct(w*p*w*(w*","*w*p*w)^0)
+parse.make_list = function(p, s) --returns a non-empty list of ps
+  s = s or ','
+  return lpeg.Ct(w*p*w*(w*s*w*p*w)^0)
 end
 
-parse.make_list0 = function(p) --returns a potentially empty list of ps
-  return lpeg.Ct(w*p*w*(w*","*w*p*w)^0 + w)
+parse.make_list0 = function(p,s) --returns a potentially empty list of ps
+  s = s or ','
+  return lpeg.Ct(w*p*w*(w*s*w*p*w)^0 + w)
 end
 
 local q_tag = quoted(lpeg.C( (tag_name_p *sep_p)^0*tag_name_p))
@@ -411,20 +413,20 @@ parse.named_form = function(tags,roll) --requires the entire input to be a valid
 end
 
 parse.expression = function(tags,roll)
-  local f = parse.with_name("form")(parse._form(tags,roll))
-  local s = parse.with_name("set")(myset1(tags))
-  local i = parse.with_name("int")(myint1(tags))
-  return s+i+f
+  local f = ('form(') * parse.with_name("form")(parse._form(tags,roll)) *")"
+  local s = 'set(' *parse.with_name("set")(myset1(tags)) *')'
+  local i = 'int('*parse.with_name("int")(myint1(tags)) *')'
+  return f+ i + s
 end
 
 parse.list_expr = function(tags,roll)
   local expr = parse.expression(tags, roll)
-  return parse.make_list(expr)
+  return parse.make_list(expr,";")
 end
 
 parse.list_form = function(tags,roll)
   local form = parse.with_name("form")(parse._form(tags,roll))
-  return parse.make_list(form) 
+  return parse.make_list(form,";") 
 end
 
 function wrap_match(p) 
