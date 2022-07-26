@@ -16,8 +16,12 @@ local editing_n = 0
 local rules = {}
 
 
-local function expr_to_string(r)
-  return r.sort .."("..r.name..")"
+local function expr_to_pref_string(r)
+  if (r.sort == "form") then 
+    return r.name
+  else
+    return r.sort ..": "..r.name
+  end
 end
 
 local function tag_string(image)
@@ -46,9 +50,8 @@ end
 
 
 
-local fmatch = ps.ematch(get_tags, get_roll)
 local ematch = ps.ematch(get_tags, get_roll)
-local fsmatch = ps.esmatch(get_tags, get_roll)
+local esmatch = ps.esmatch(get_tags, get_roll)
 
 
 -- return data structure for script_manager
@@ -56,11 +59,6 @@ local script_data = {}
 script_data.destroy = nil -- function to destory the script
 script_data.destroy_method = nil -- set to hide for libs since we can't destroy them commpletely yet, otherwise leave as nil
 script_data.restart = nil -- how to restart the (lib) script after it's been hidden - i.e. make it visible again
-
-local function swap()
-
-
-end
 
 
 local function stop_job(job)
@@ -148,14 +146,14 @@ end
 function get_rules()
   local rs =  dt.preferences.read("tag_verify", "rules", "string")
   local r = {}
-  r = fsmatch(rs)
+  r = esmatch(rs)
   if (r== nil) then r={} end
   return r
 end
 
 function write_rule(rule)
   local r = get_rules_raw()
-  local x = expr_to_string(rule)
+  local x = expr_to_pref_string(rule)
   if (r == "") then dt.preferences.write("tag_verify", "rules", "string", x)
   else dt.preferences.write("tag_verify", "rules", "string", r..";"..x)
   end
@@ -175,9 +173,9 @@ local function make_rules_string(rs)
   if (#rs == 0) then 
     return ""
   end
-  str = expr_to_string(rs[1])
+  str = expr_to_pref_string(rs[1])
   for i = 2,#rs,1 do
-    str = str .. ";"..expr_to_string(rs[i])
+    str = str .. ";"..expr_to_pref_string(rs[i])
   end
   return str
 end
@@ -185,7 +183,7 @@ end
 local function rule_to_text(rule)
   local post = ""
   if (rule.editing) then post = " editing ..." end
-  return rule.name .. post
+  return expr_to_pref_string(rule) .. post
 end
 
 local function populate_combobox(c)
@@ -326,7 +324,7 @@ local function edit_entry(gui)
     gui.rule_entry_label.label = "editing:"
     gui.edit_button.label = "cancel"
     gui.add_button.label = "save"
-    gui.rule_entry.text = gui.rules_list[editing_n]
+    gui.rule_entry.text = expr_to_pref_string(rules[editing_n]) 
   else
     end_editing(gui)
   end
@@ -342,6 +340,7 @@ local rules_list_text = dt.new_widget("text_view"){editable = false}
 local delete_button = dt.new_widget("button"){label = "delete"}
 local edit_button = dt.new_widget("button"){label = "edit"}
 local add_button = dt.new_widget("button"){label = "add"}
+local debug_button = dt.new_widget("button"){label = "debug", visible=verbose}
 
 local gui = {
   edit_button = edit_button, 
@@ -385,7 +384,6 @@ local function debug(gui)
     for i,r in ipairs(gui.rules_list) do
       print(i..": "..r)
     end
-
     print("editing: ")
     print(editing)
     print("editing_n: "..editing_n)
@@ -393,12 +391,14 @@ local function debug(gui)
   end
 end
 
+debug_button.clicked_callback = debug(gui)
+
 local function clear(gui)
   return function(self)
       clear_rules()
       gui.clear_combobox()
       gui.rules_list.selected = 0
-      update_text_list(gui.rules_list_text)
+      gui.update_text_list()
 
 end   
 end
@@ -410,7 +410,7 @@ local my_widget = dt.new_widget("box"){
     current_image,
     rules_list_text,
     dt.new_widget("button"){label = "clear", clicked_callback = clear(gui) },
-    dt.new_widget("button"){label="debug", clicked_callback = debug(gui)},
+    debug_button,
  }
 
 

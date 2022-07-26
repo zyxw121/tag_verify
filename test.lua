@@ -370,13 +370,13 @@ end
       expect(match('int(1)').sort).to.equal('int')
       expect(match('int(1)').name).to.equal('1')
 
-      expect(ematch('1').sort).to.equal('int')
+      expect(ematch('int: 1').sort).to.equal('int')
 
       expect(match('set(\"test\")')).to.exist()
       expect(match('set(\"test\")').sort).to.equal('set')
       expect(match('set(\"test\")').name).to.equal('\"test\"')
 
-      expect(ematch('\"test\"').sort).to.equal('set')
+      expect(ematch('set :\"test\"').sort).to.equal('set')
 
       expect(match('form(eq(1,1))')).to.exist()
       expect(match('form(eq(1,1))').sort).to.equal('form')
@@ -385,7 +385,7 @@ end
       expect(match('form(\"120\" or \"35mm\")' ).sort).to.equal('form')
       expect(ematch('\"120\" or \"35mm\"' )).to.exist()
       expect(ematch('\"120\" or \"35mm\"' ).sort).to.equal('form')
-      expect(ematch('\"120\"' ).sort).to.equal('set')
+      expect(ematch('set : \"120\"' ).sort).to.equal('set')
       expect(ematch('\"120\" or mm\"' )).to_not.exist()
       expect(match('form(\"120\" or \"35mm\")').name).to.equal('\"120\" or \"35mm\"')
 
@@ -397,20 +397,20 @@ end
         return lpeg.match(p.list_expr(tags,roll), text)
       end
 
-      local str = "form(eq(num(\"Camera|%\"),1));form(\"120\" or \"35mm\");form(leq(1,3)); int(1); set(\"120\")"
+      local str = "eq(num(\"Camera|%\"),1);\"120\" or \"35mm\";eq(1,3); int: 1; set :\"120\""
 
 
       expect(match(str)).to.exist()
 --      tprint(lpeg.match(p.list_form(tags,roll),str))
 
-      expect(match("form(false)")[1].name).to.equal("false")
-      expect(match("int(1)")[1].name).to.equal("1")
+      expect(match("false")[1].name).to.equal("false")
+      expect(match("int :1")[1].name).to.equal("1")
 --      tprint(p.ematch(tags,roll)("1"))
-      expect(p.esmatch(tags,roll)("int(1)")[1].name).to.equal("1")
-      expect(match("int(1)")[1].sort).to.equal("int")
+      expect(p.esmatch(tags,roll)("int :1")[1].name).to.equal("1")
+      expect(match("int : 1")[1].sort).to.equal("int")
       
 
-      local xs = match("form(true);form(true); form(true)  ;    form(true) ")
+      local xs = match("true;true; true  ;    true ")
       expect(#xs).to.equal(4)
       for _,r in ipairs(xs) do
         expect(r.name).to.equal("true")
