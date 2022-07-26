@@ -8,12 +8,16 @@ Enable tag system constraints and verification
 local dt = require "darktable"
 local ps = require "tag_verify/parse"
 
+
+
+
 local verbose = true
 local editing = false
 local editing_n = 0
 
 
 local rules = {}
+local memo = {}
 
 
 local function expr_to_pref_string(r)
@@ -47,9 +51,35 @@ local function get_tags(image)
   return image.get_tags(image)
 end
 
+local function get_rollm(memo)
+  local get_roll = function(image)
+    local n =#image.film
+    roll = {}
+    for i = 1,n,1 do
+      roll[i] = image.film[i]
+    end
+    return roll
+  end
+  local nin_memo = function(image,f)
+    return (memo[f] == nil or memo[f][image.film.id]==nil) --can be null
+  end
+  local add_to_memo = function(image,f, val)
+    if (memo[f]==nil) then memo[f] = {} end
+    memo[f][image.film.id] = val
+  end
+  local get_memo = function(image, f)
+    if (memo[f] == nil) then return nil end
+    return memo[f][image.film.id]
+  end
+  return {get_roll=get_roll, nin_memo = nin_memo, add_to_memo = add_to_memo, get_memo = get_memo}
+end
 
-local ematch = ps.ematch(get_tags, get_roll)
-local esmatch = ps.esmatch(get_tags, get_roll)
+local function make_match(memo)
+  return ps.ematch(get_tags, get_rollm(memo))
+end
+
+local ematch = ps.ematch(get_tags, get_rollm(memo))
+local esmatch = ps.esmatch(get_tags, get_rollm(memo))
 
 
 -- return data structure for script_manager

@@ -300,18 +300,33 @@ local function sorted_sets_unequal(a,b)
   return false
 end
 
-local function make_roll(get_roll,get_tags)
+local function make_roll(z,get_tags)
   return function (p) --p is the callback that generates the tag-set at x
+    -- for memoisation, p needs to have a name...
     return function (x)  
-    local here = p(x)
-    local there = {}
-    for _,image in ipairs(get_roll(x)) do
-      local there = p(image) 
-      if sorted_sets_unequal(here, there) 
-        then return false 
+      print("evaling makeroll of")
+      print(p)
+      print(p.name)
+      print("at image")
+      print(x)
+      if (not z.nin_memo(x,p.name)) then
+        print("already memoised")
+        return z.get_memo(x,p.name)
+      else 
+        print("not memoised yet")
+        local here = p.apply_at(x)
+        local there = {}
+        for _,image in ipairs(z.get_roll(x)) do
+          local there = p.apply_at(image) 
+          if sorted_sets_unequal(here, there) 
+            then 
+              z.add_to_memo(x,p.name, false)
+              return false 
+          end
+        end
+        z.add_to_memo(x,p.name, true)
+        return true 
       end
-    end
-    return true 
   end
 end
 end
@@ -365,7 +380,7 @@ local myterm = function(tags,roll)
     + lpeg.P"true" / make_true
     + lpeg.P"false" / make_false
     + parse.set_p(tags) / inhabited
-    + "roll(" * parse.set_p(tags) *")" /make_roll(roll,tags)
+    + "roll(" * parse.with_name("set")(parse.set_p(tags)) *")" /make_roll(roll,tags)
 end
 
 local function myf(s,t)

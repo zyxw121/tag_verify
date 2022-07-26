@@ -11,7 +11,11 @@ local function split(str,sep)
   return lpeg.match(p, str)
 end
 
-local function make_image(ts)
+local function make_image(ts,j)
+  if (j==nil) then
+    j = 1
+  end
+
   local i = 1 
   local image = {}
   image["tags"] = {}
@@ -22,7 +26,7 @@ local function make_image(ts)
     image["tags"][i] = tag
     i = i+1
   end
-  image["film"] = {}
+  image["film"] = {id = j}
   local function add_to_roll(y)
     table.insert(image["film"],y)
   end
@@ -35,10 +39,27 @@ function tags(y)
   return y["tags"]
 end
 
-function roll(y)
+function _roll(y)
   return y["film"]
 end
 
+local memo = {}
+local function nin_memo(x,f)
+  return (memo[x.film.id] == nil or memo[x.film.id][f] == nil)
+end
+local function add_to_memo(x,f,v)
+  if (memo[x.film.id] == nil) then memo[x.film.id] = {}end
+  memo[x.film.id][f] = v
+end
+
+local function get_memo(x,f)
+  if (memo[x.film.id] == nil) then return nil end
+  return memo[x.film.id][f]
+end
+
+
+
+local roll = {get_roll = _roll, nin_memo = nin_memo, add_to_memo = add_to_memo, get_memo=get_memo}
 
 local function tags_set(x)
   local ts = {}
@@ -337,16 +358,18 @@ end
     end)
 
     it('roll', function()
-      local x = make_image("test,120,a|b,a|c,d|e")
-      local y = make_image("test,120,a|b,a|c,d|f")
+      local x = make_image("test,120,a|b,a|c,d|e",1)
+      local y = make_image("test,120,a|b,a|c,d|f",1)
       x.add_to_roll(y)
       local function match(text)
         --return lpeg.match(form, text)
         return p.fmatch(tags,roll)(text).apply_at
       end
+      local r = match("roll(\"a|%\")")
       expect(match("roll(\"a|%\")")).to.exist()
-      expect(match("roll(\"a|%\")")(x)).to.exist()
-      expect(match("roll(\"a|%\")")(x)).to.equal(true)
+      expect(r(x)).to.exist()
+      expect(r(x)).to.equal(true)
+      expect(r(y)).to.equal(true)
       expect(match("roll(\"d|%\")")(x)).to.equal(false)
     end)
 
