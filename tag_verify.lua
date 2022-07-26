@@ -20,7 +20,6 @@ local function expr_to_string(r)
   return r.sort .."("..r.name..")"
 end
 
-
 local function tag_string(image)
   tags = image.get_tags(image)
   local ts = ""
@@ -69,20 +68,19 @@ local function stop_job(job)
 end
 
 local function validate_image(rs,image)
-local fails = {}
-local x = true
-for _,rule in ipairs(rs) do
-  local y = rule.apply_at(image)
-  x = x and y
-  if (not y) then
-    table.insert(fails, rule.name)
+  local fails = {}
+  local x = true
+  for _,rule in ipairs(rs) do
+    local y = rule.apply_at(image)
+    x = x and y
+    if (not y) then
+      table.insert(fails, rule.name)
+    end
   end
-end
-
-local result = {}
-result["passed"] = x
-result["fails"] = fails
-return result
+  local result = {}
+  result["passed"] = x
+  result["fails"] = fails
+  return result
 end
 
 local function set_to_string(set)
@@ -117,7 +115,6 @@ local function make_validate_image(rs,image)
   end
   return extra
 end
-
 
 
 local function select_untagged_images(event, images)
@@ -167,45 +164,11 @@ end
 function write_rules(x)
   dt.preferences.write("tag_verify", "rules", "string", x)
 end
-  
 
 function clear_rules()
   dt.preferences.write("tag_verify", "rules", "string", "")
   rules = {}
 end
-
-
-local rule_entry = dt.new_widget("entry"){ tooltip = "please enter text here" }
-
-
-
-
-
-local function populate_combobox(c)
-  assert(#c==0)
-  for i,rule in ipairs(get_rules()) do
-    c[i] = rule.name
-  end
-  c.selected=#c
-end
-
-function update_combobox(c,t)
-  local n = #c+1
-  c[n]=t
-  c.selected=n
-end
-  
-function clear_combobox(c)
-  for i=#c,1,-1 do --have to go backwards
-    c[i] = nil
-  end
-end
-
-local rule_entry_label = dt.new_widget("label"){label = "new rule:"}
-local status_label = dt.new_widget("label"){label = ""}
-local current_image = dt.new_widget("label"){label = ""}
-
-
 
 local function make_rules_string(rs)
   local str = ""
@@ -219,75 +182,56 @@ local function make_rules_string(rs)
   return str
 end
 
-local rules_list = dt.new_widget("combobox"){label = "rules"}
-
-local rules_list_text = dt.new_widget("text_view"){editable = false}
-
 local function rule_to_text(rule)
   local post = ""
   if (rule.editing) then post = " editing ..." end
   return rule.name .. post
 end
 
+local function populate_combobox(c)
+  assert(#c==0)
+  for i,rule in ipairs(get_rules()) do
+    c[i] = rule.name
+  end
+  c.selected=#c
+end
 
-local function update_text_list(text_view, extra)
-  if (not extra) then
-    extra = {}
-    for i,_ in ipairs(rules) do
-      extra[i] = ""
+function update_combobox(c)
+  return function(t)
+  local n = #c+1
+  c[n]=t
+  c.selected=n
+end
+end
+  
+function clear_combobox(c)
+  for i=#c,1,-1 do --have to go backwards
+    c[i] = nil
+  end
+end
+
+local function update_text_list(text_view)
+  return function(extra)
+    if (not extra) then
+      extra = {}
+      for i,_ in ipairs(rules) do
+        extra[i] = ""
+      end
     end
-  end
-  assert(#extra == #rules)
-  local text = ""
-  if (#rules == 0) then return 
-  end
-  text = rule_to_text(rules[1])..extra[1]
-  for i =2,#rules,1 do 
-   text = text.."\n"..rule_to_text(rules[i]) ..extra[i]
-  end
-  text_view.text = text
-end
-
-local function update_all(rules)
-  local str = make_rules_string(rules)
-  write_rules(str)
-  update_text_list(rules_list_text)
-  clear_combobox(rules_list)
-  populate_combobox(rules_list)
-  rules_list.selected = nil
-end
-
-
-local function end_editing(add_button, edit_button)
-      editing = false
-      rules[editing_n].editing = false
-      rule_entry_label.label ="new rule:"
-      edit_button.label = "edit"
-      add_button.label = "add"
-      rule_entry.text = ""
-      update_text_list(rules_list_text)
-      rules_list.selected = editing_n
-end
-
-
-local function delete_entry(add_button, edit_button)
-  return function(self)
-  if (editing) then 
-  end_editing(add_button, edit_button)
-  end 
-  local n=  rules_list.selected
-  local t = rules_list[n]
-  dt.print_toast("deleted rule: "..rules_list[n])
-  if (n==0 or n==nil) then return end
-  table.remove(rules,n)
-  table.remove(rules_list,n)
-  update_all(rules)
-  rule_entry.text = t
+    assert(#extra == #rules)
+    local text = ""
+    if (#rules == 0) then return 
+    end
+    text = rule_to_text(rules[1])..extra[1]
+    for i =2,#rules,1 do 
+     text = text.."\n"..rule_to_text(rules[i]) ..extra[i]
+    end
+    text_view.text = text
 end
 end
 
-
-local function on_hover(event, image)
+local function on_hover(gui)
+  return function(event, image)
   local extra = nil
   local text = ""
   if (not image) then
@@ -296,13 +240,51 @@ local function on_hover(event, image)
     text = image.filename
     extra = make_validate_image(rules,image)
   end
-  current_image.label = text
-  update_text_list(rules_list_text, extra)
+  gui.current_image.label = text
+  gui.update_text_list(extra)
+end
 end
 
-local function add_entry(edit_button)
+
+local function update_all(gui)
+  local str = make_rules_string(rules)
+  write_rules(str)
+  gui.update_text_list()
+  gui.clear_combobox()
+  gui.populate_combobox()
+  gui.rules_list.selected = nil
+end
+
+
+local function end_editing(gui)
+  editing = false
+  rules[editing_n].editing = false
+  gui.rule_entry_label.label ="new rule:"
+  gui.edit_button.label = "edit"
+  gui.add_button.label = "add"
+  gui.rule_entry.text = ""
+  gui.update_text_list()
+  gui.rules_list.selected = editing_n
+end
+
+local function delete_entry(gui)
   return function(self)
-  local t = rule_entry.text
+  if (editing) then end_editing(gui) end 
+  local n = gui.rules_list.selected
+  if (n==0 or n==nil) then return end
+  local t = gui.rules_list[n]
+  dt.print_toast("deleted rule: "..t)
+  table.remove(rules,n)
+  table.remove(gui.rules_list,n)
+  update_all(gui)
+  gui.rule_entry.text = t
+end
+end
+
+
+local function add_entry(gui)
+  return function(self)
+  local t = gui.rule_entry.text
   local rule = ematch(t)
   if (rule==nil) then
     dt.print_toast("error: "..t)
@@ -310,8 +292,8 @@ local function add_entry(edit_button)
     if (editing) then
       dt.print_toast("updated: "..t)
       rules[editing_n] = rule
-      update_all(rules)
-      end_editing(self, edit_button)
+      update_all(gui)
+      end_editing(gui)
     else
       dt.print_toast("added rule: "..t)
       local r1=get_rules_raw()
@@ -320,45 +302,64 @@ local function add_entry(edit_button)
   --    assert((r1=="" and r2==t) or r2==(r1..","..t))
       assert(rules[#rules+1]==nil)
       rules[#rules+1] =rule 
-      update_combobox(rules_list,t)
-      update_text_list(rules_list_text)
-      rule_entry.text = "" 
+      gui.update_combobox(t)
+      gui.update_text_list()
+      gui.rule_entry.text = "" 
   end
   end
 end
 end
 
-
-
-
-local function edit_entry(add_button)
+local function edit_entry(gui)
   return function(self)
-  local n = rules_list.selected
-  if (n== nil or n== 0) then dt.print_toast("no rule selected")
+  local n = gui.rules_list.selected
+  if (n== nil or n== 0) then 
+    dt.print_toast("no rule selected") 
+    return 
   end
   if (not editing) then
     editing = true
     editing_n = n 
     rules[n].editing = true
-    local current = rules_list.value
-    update_text_list(rules_list_text)
-    rule_entry_label.label = "editing:"
-    self.label = "cancel"
-    add_button.label = "save"
-    rule_entry.text = rules_list[editing_n]
+    local current = gui.rules_list.value
+    gui.update_text_list()
+    gui.rule_entry_label.label = "editing:"
+    gui.edit_button.label = "cancel"
+    gui.add_button.label = "save"
+    gui.rule_entry.text = gui.rules_list[editing_n]
   else
-    end_editing(add_button, self)
+    end_editing(gui)
   end
 end
 end
 
+local rule_entry = dt.new_widget("entry"){ tooltip = "please enter text here" }
+local rule_entry_label = dt.new_widget("label"){label = "new rule:"}
+local status_label = dt.new_widget("label"){label = ""}
+local current_image = dt.new_widget("label"){label = ""}
+local rules_list = dt.new_widget("combobox"){label = "rules"}
+local rules_list_text = dt.new_widget("text_view"){editable = false}
 local delete_button = dt.new_widget("button"){label = "delete"}
 local edit_button = dt.new_widget("button"){label = "edit"}
 local add_button = dt.new_widget("button"){label = "add"}
 
-add_button.clicked_callback = add_entry(edit_button)
-edit_button.clicked_callback = edit_entry(add_button)
-delete_button.clicked_callback = delete_entry(add_button, edit_button)
+local gui = {
+  edit_button = edit_button, 
+  add_button = add_button,
+  current_image = current_image,
+  rules_list_text = rules_list_text,
+  rules_list = rules_list,
+  rule_entry = rule_entry,
+  rule_entry_label = rule_entry_label,
+  update_text_list = update_text_list(rules_list_text),
+  update_combobox = update_combobox(rules_list),
+  populate_combobox = function() populate_combobox(rules_list) end,
+  clear_combobox = function() clear_combobox(rules_list) end,
+}
+
+add_button.clicked_callback = add_entry(gui)
+edit_button.clicked_callback = edit_entry(gui)
+delete_button.clicked_callback = delete_entry(gui)
 
   local new_rule_box = dt.new_widget("box"){
     orientation = "horizontal",
@@ -374,25 +375,32 @@ delete_button.clicked_callback = delete_entry(add_button, edit_button)
     delete_button
   }
 
-local function debug(self)
-print("rules table:-------")
-ps.tprint(rules)
-print("rules string:------")
-print(get_rules_raw())
-print("rules list box:---")
-for i,r in ipairs(rules_list) do
-  print(i..": "..r)
-end
-print(dt.debug.dump(self))
+local function debug(gui)
+  return function(self)
+    print("rules table:-------")
+    ps.tprint(rules)
+    print("rules string:------")
+    print(get_rules_raw())
+    print("rules list box:---")
+    for i,r in ipairs(gui.rules_list) do
+      print(i..": "..r)
+    end
 
+    print("editing: ")
+    print(editing)
+    print("editing_n: "..editing_n)
+    print(dt.debug.dump(gui.rules_list))
+  end
 end
 
-local function clear()
+local function clear(gui)
+  return function(self)
       clear_rules()
-      clear_combobox(rules_list)
-      rules_list.selected = 0
-      update_text_list(rules_list_text)
+      gui.clear_combobox()
+      gui.rules_list.selected = 0
+      update_text_list(gui.rules_list_text)
 
+end   
 end
 
 local my_widget = dt.new_widget("box"){
@@ -401,16 +409,15 @@ local my_widget = dt.new_widget("box"){
     select_rule_box,
     current_image,
     rules_list_text,
-    dt.new_widget("button"){label = "clear", clicked_callback = clear },
-    dt.new_widget("button"){label="debug", clicked_callback = debug},
+    dt.new_widget("button"){label = "clear", clicked_callback = clear(gui) },
+    dt.new_widget("button"){label="debug", clicked_callback = debug(gui)},
  }
 
 
 local function initialise()
 rules = get_rules()
-
-populate_combobox(rules_list)
-  update_text_list(rules_list_text)
+gui.populate_combobox()
+  gui.update_text_list()
 end
 
 local function destroy()
@@ -429,7 +436,7 @@ dt.gui.libs.select.register_selection(
   "select all images that do not pass the tag conditions")
 
 dt.preferences.register("tag_verify", "tag_rules", "string", "Tag Rules", "t", "")
-dt.register_event("update_hovered", "mouse-over-image-changed", on_hover)
+dt.register_event("update_hovered", "mouse-over-image-changed", on_hover(gui))
 
 
 
