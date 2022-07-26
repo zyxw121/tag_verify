@@ -48,8 +48,6 @@ local function get_tags(image)
 end
 
 
-
-
 local ematch = ps.ematch(get_tags, get_roll)
 local esmatch = ps.esmatch(get_tags, get_roll)
 
@@ -69,10 +67,12 @@ local function validate_image(rs,image)
   local fails = {}
   local x = true
   for _,rule in ipairs(rs) do
-    local y = rule.apply_at(image)
-    x = x and y
-    if (not y) then
-      table.insert(fails, rule.name)
+    if (rule.sort=="form") then
+      local y = rule.apply_at(image)
+      x = x and y
+      if (not y) then
+        table.insert(fails, rule.name)
+      end
     end
   end
   local result = {}
