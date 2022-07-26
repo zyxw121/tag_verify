@@ -362,22 +362,31 @@ end
     it('expr', function()
       local x = make_image("test")
       local function match(text)
-        return lpeg.match(p.expression(tags,roll), text)
+        return lpeg.match(p.expression1(tags,roll), text)
+--        return ematch(text)
       end
 
       expect(match('int(1)')).to.exist()
       expect(match('int(1)').sort).to.equal('int')
       expect(match('int(1)').name).to.equal('1')
 
+      expect(ematch('1').sort).to.equal('int')
+
       expect(match('set(\"test\")')).to.exist()
       expect(match('set(\"test\")').sort).to.equal('set')
       expect(match('set(\"test\")').name).to.equal('\"test\"')
+
+      expect(ematch('\"test\"').sort).to.equal('set')
 
       expect(match('form(eq(1,1))')).to.exist()
       expect(match('form(eq(1,1))').sort).to.equal('form')
 
       expect(match('set(\"120\")').sort).to.equal('set')
       expect(match('form(\"120\" or \"35mm\")' ).sort).to.equal('form')
+      expect(ematch('\"120\" or \"35mm\"' )).to.exist()
+      expect(ematch('\"120\" or \"35mm\"' ).sort).to.equal('form')
+      expect(ematch('\"120\"' ).sort).to.equal('set')
+      expect(ematch('\"120\" or mm\"' )).to_not.exist()
       expect(match('form(\"120\" or \"35mm\")').name).to.equal('\"120\" or \"35mm\"')
 
     end)
@@ -389,11 +398,9 @@ end
       end
 
       local str = "form(eq(num(\"Camera|%\"),1));form(\"120\" or \"35mm\");form(leq(1,3)); int(1); set(\"120\")"
-      local str1= "eq(num(\"Camera|%\"),1);\"120\" or \"35mm\";1;\"Camera|%\";num(\"Camera|%\");\"120\";roll(\"120\");roll(\"120\");\"Camera|%\";\"Film|%\";if(\"Film|B&W|%\", \"Dev|%\" and \"ISO|%\");eq(num(\"Lens|%\"),1);eq(num(\"Film|%\"),1);if(subset(\"Camera|%\", {\"Camera|Mamiya RB67\", \"Camera|Mamiya Universal\", \"Camera|Yashica D\"}), \"120\" and (not \"35mm\"))"
 
 
       expect(match(str)).to.exist()
-      tprint(match(str))
 --      tprint(lpeg.match(p.list_form(tags,roll),str))
 
       expect(match("form(false)")[1].name).to.equal("false")

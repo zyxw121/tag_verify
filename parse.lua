@@ -413,14 +413,20 @@ parse.named_form = function(tags,roll) --requires the entire input to be a valid
 end
 
 parse.expression = function(tags,roll)
-  local f = ('form(') * parse.with_name("form")(parse._form(tags,roll)) *")"
+  local f =  parse.with_name("form")(parse._form(tags,roll)) 
+  local s = parse.with_name("set")(myset1(tags)) 
+  local i = parse.with_name("int")(myint1(tags)) 
+  return (s+i+f)
+end
+parse.expression1 = function(tags,roll)
+  local f = 'form('* parse.with_name("form")(parse._form(tags,roll)) *")"
   local s = 'set(' *parse.with_name("set")(myset1(tags)) *')'
   local i = 'int('*parse.with_name("int")(myint1(tags)) *')'
-  return f+ i + s
+  return s+i+f
 end
 
 parse.list_expr = function(tags,roll)
-  local expr = parse.expression(tags, roll)
+  local expr = parse.expression1(tags, roll)
   return parse.make_list(expr,";")
 end
 
@@ -438,7 +444,20 @@ end
 parse.wrap_match = wrap_match
 
 parse.ematch = function(tags, roll)
-    return wrap_match(parse.expression(tags, roll)*-1)
+  return function(text)
+    local sp = parse.with_name("set")(myset1(tags))*-1
+    local ip = parse.with_name("int")(myint1(tags))*-1
+    local fp = parse.with_name("form")(parse._form(tags))*-1
+
+    local s = lpeg.match(sp, text)
+    if s then return s
+    end
+    local i = lpeg.match(ip, text)
+    if (i) then return i
+    else return lpeg.match(fp, text)
+    end
+
+  end
 end
 parse.fmatch = function(tags, roll)
     return wrap_match(parse.named_form(tags, roll))
