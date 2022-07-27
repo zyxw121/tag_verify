@@ -51,7 +51,7 @@ The terminal tags of the above photos are therefore
 2. `places|France|Nord`
 3. `places|England`
 
-Note that being terminal is a property of a tag in a set, and `places|France|Nord` is terminal in photo 2 but not in photo 1. We see that each photo indeed has one *terminal* tag that matches `places|%`. So, the Tag Verify set expressions are only concerned with terminal tags: evaluating `"places|%"` at photo 1 would return the singleton set $\left\{$ `places|France|Nord|Lille` $\right\}$.
+Note that being terminal is a property of a tag in a set, and `places|France|Nord` is terminal in photo 2 but not in photo 1. We see that each photo indeed has one *terminal* tag that matches `places|%`. So, the Tag Verify set expressions are only concerned with terminal tags: evaluating `"places|%"` at photo 1 would return the singleton set  `{ places|France|Nord|Lille }`.
 
 To specify that each image must be tagged with a single location, you could use the rule `eq(num("places|%"),1)`.
 
@@ -84,8 +84,8 @@ Tag Verify uses a modal logic for expressing constraints on image tags. An infor
 
 The logical connectives and comparison functions behave in the usual way. The denotation of a set expression at an image `x` is the set of terminal tags of `x` that match the expression. There are three ways of defining sets of tags.
 
-1. An exact tag "t" , which is interpreted as the set $\{s \in \text{terminal\_tags}(x) : s = t \}$
-2. A partial tag "t|%", which is interpreted as the set $\{s \in \text{terminal\_tags}(x) : t \text{ is a prefix of } s \}$
+1. An exact tag "t" , which is interpreted as the set `{s in terminal_tags(x) : s = t }`
+2. A partial tag "t|%", which is interpreted as the set `{s in terminal_tags(x) : t is a prefix of s }`
 3. A finite set of (exact) tags, expressed as `{ tag, tag, tag }`. Note that no tag should be the prefix of another--- `{a, |\b}` will be interpreted as the set `{a|b}`.
 
 
