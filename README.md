@@ -66,7 +66,7 @@ Film|35mm
 Film|120
 ```
 
-To express the constraint that every photo must have precisely one of those tags, you could use the rule `"Digital" xor "Film|%"`. Here, we use the fact that when a set is used in the position of a rule, it is interpreted as `leq(1, set)` (i.e. iff it is inhabited)/
+To express the constraint that every photo must have precisely one of those tags, you could use the rule `"Digital" xor "Film|%"`. Here, we use the fact that when a set is used in the position of a rule, it is interpreted as `leq(1, set)` (i.e. iff it is inhabited).
 
 Further, if you organise your photos by actual film rolls, you might want to say that in every roll, every photo should have the same format tag. This is what the `roll` function allows: `roll(union("Digital", "Film|%"))` (meditate on why use of the union operator is necessary...)
 
@@ -112,9 +112,11 @@ For example, if you wish to express the condition that every image in a film rol
 
 ## Usage
 The plugin provides a UI interface for adding new rules. Rules may be typed into the 'new rule' entry box, and added with 'add' button. An error will pop up if the rule does not parse. The active rules appear listed in the box below. Hovering over an image will indicate whether every the active rules are valid or not. The 'edit' and 'delete' buttons allow for editing and deleting rules, and the 'clear' button will remove every added rule.
+![](docs/tag_verify.png)
+
 
 Also, a 'select badly tagged' button is added to the selection module. Clicking this button will select all the images that fail at least one rule. 
-
+![](docs/select.png)
 
 ## Install:
 
