@@ -112,11 +112,11 @@ For example, if you wish to express the condition that every image in a film rol
 
 ## Usage
 The plugin provides a UI interface for adding new rules. Rules may be typed into the 'new rule' entry box, and added with 'add' button. An error will pop up if the rule does not parse. The active rules appear listed in the box below. Hovering over an image will indicate whether every the active rules are valid or not. The 'edit' and 'delete' buttons allow for editing and deleting rules, and the 'clear' button will remove every added rule.
-![interface](docs/tag_verify.png)
+![interface](doc/tag_verify.png)
 
 
 Also, a 'select badly tagged' button is added to the selection module. Clicking this button will select all the images that fail at least one rule. 
-![selection interface](docs/select.png)
+![selection interface](doc/select.png)
 
 ## Install:
 
