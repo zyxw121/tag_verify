@@ -51,7 +51,7 @@ The terminal tags of the above photos are therefore
 2. `places|France|Nord`
 3. `places|England`
 
-Note that being terminal is a property of a tag in a set, and `places|France|Nord` is terminal in photo 2 but not in photo 1. We see that each photo indeed has one *terminal* tag that matches `places|%`. So, the Tag Verify set expressions are only concerned with terminal tags: evaluating `"places|%"` at photo 1 would return the singleton set $\{ \text{places|France|Nord|Lille} \}$.
+Note that being terminal is a property of a tag in a set, and `places|France|Nord` is terminal in photo 2 but not in photo 1. We see that each photo indeed has one *terminal* tag that matches `places|%`. So, the Tag Verify set expressions are only concerned with terminal tags: evaluating `"places|%"` at photo 1 would return the singleton set $\left{$ `places|France|Nord|Lille` $\right}$.
 
 To specify that each image must be tagged with a single location, you could use the rule `eq(num("places|%"),1)`.
 
