@@ -38,7 +38,6 @@ end
 function tags(y) 
   return y["tags"]
 end
-
 function _roll(y)
   return y["film"]
 end
@@ -51,14 +50,10 @@ local function add_to_memo(x,f,v)
   if (memo[x.film.id] == nil) then memo[x.film.id] = {}end
   memo[x.film.id][f] = v
 end
-
 local function get_memo(x,f)
   if (memo[x.film.id] == nil) then return nil end
   return memo[x.film.id][f]
 end
-
-
-
 local roll = {get_roll = _roll, nin_memo = nin_memo, add_to_memo = add_to_memo, get_memo=get_memo}
 
 local function tags_set(x)
@@ -92,15 +87,14 @@ end
 
 --terms are single letters, ints are ints. use for testing structure
 local tform = p.make_form(myt,myi, myt)(tags,roll) *-1
-local form = p.form(tags,roll)
 local expr = p.expression(tags,roll)
 
-local fmatch = p.fmatch(tags,roll)
 local ematch = p.ematch(tags,roll)
 
 
 describe('tag_verify', function()
   lust.before(function()
+    memo = {}
     -- This gets run before every test.
   end)
 
@@ -262,29 +256,23 @@ describe('tag_verify', function()
 
     it('eq, leq, constants', function()
       local x = make_image("test,120,a|b,a|c,d|e")
-      local function ematch(text)
-        return lpeg.match(expr, text)
-      end
-      local function match(text)
-        return lpeg.match(form, text)
-      end
-      expect(match("eq(true,false)")).to_not.exist()
-      expect(match("eq(false)")).to_not.exist()
-      expect(match("eq(0)")).to_not.exist()
-      expect(match("eq(0,  )")).to_not.exist()
-      expect(match("eq(0,0)")).to.exist()
-      expect(match("eq( 0   , 0 )")(x)).to.equal(true)
-      expect(match("eq(0,1)")(x)).to.equal(false)
-      expect(match("leq(0,1)")(x)).to.equal(true)
-      expect(match("leq(1,1)")(x)).to.equal(true)
-      expect(match("leq(2,1)")(x)).to.equal(false)
-      expect(match("true")(x)).to.equal(true)
-      expect(match("false")(x)).to.equal(false)
+      expect(ematch("eq(true,false)")).to_not.exist()
+      expect(ematch("eq(false)")).to_not.exist()
+      expect(ematch("eq(0)")).to_not.exist()
+      expect(ematch("eq(0,  )")).to_not.exist()
+      expect(ematch("eq(0,0)")).to.exist()
+      expect(ematch("eq( 0   , 0 )").apply_at(x)).to.equal(true)
+      expect(ematch("eq(0,1)").apply_at(x)).to.equal(false)
+      expect(ematch("leq(0,1)").apply_at(x)).to.equal(true)
+      expect(ematch("leq(1,1)").apply_at(x)).to.equal(true)
+      expect(ematch("leq(2,1)").apply_at(x)).to.equal(false)
+      expect(ematch("true").apply_at(x)).to.equal(true)
+      expect(ematch("false").apply_at(x)).to.equal(false)
 
-      expect(match("eq({\"d|e\"} ,\"d|%\" )")(x)).to.equal(true)
-      expect(match("eq(num(\"d|%\"),1 )")(x)).to.equal(true)
-      expect(match("eq({\"a|b\", \"a|c\"} ,\"a|%\" )")(x)).to.equal(true)
-      expect(match("subset( \"a|%\", {\"a|b\", \"a|c\" , \"a|x|y\"})")(x)).to.equal(true)
+      expect(ematch("eq({\"d|e\"} ,\"d|%\" )").apply_at(x)).to.equal(true)
+      expect(ematch("eq(num(\"d|%\"),1 )").apply_at(x)).to.equal(true)
+      expect(ematch("eq({\"a|b\", \"a|c\"} ,\"a|%\" )").apply_at(x)).to.equal(true)
+      expect(ematch("subset( \"a|%\", {\"a|b\", \"a|c\" , \"a|x|y\"})").apply_at(x)).to.equal(true)
 
       local a,b,c = 'a','b','c'
 
@@ -363,7 +351,7 @@ end
       x.add_to_roll(y)
       local function match(text)
         --return lpeg.match(form, text)
-        return p.fmatch(tags,roll)(text).apply_at
+        return p.ematch(tags,roll)(text).apply_at
       end
       local r = match("roll(\"a|%\")")
       expect(match("roll(\"a|%\")")).to.exist()
@@ -375,42 +363,39 @@ end
 
     it('connectives', function()
       local x = make_image("test")
-      local function match(text)
-        return lpeg.match(form, text)
-      end
       --seems unnecesary. the connectives are so transparently correct
-      expect(match("true or true")(x)).to.equal(true)
+      expect(ematch("true or true").apply_at(x)).to.equal(true)
     end)
  
     it('expr', function()
       local x = make_image("test")
       local function match(text)
-        return lpeg.match(p.expression1(tags,roll), text)
+        return lpeg.match(p.expression(tags,roll), text)
 --        return ematch(text)
       end
 
-      expect(match('int(1)')).to.exist()
-      expect(match('int(1)').sort).to.equal('int')
-      expect(match('int(1)').name).to.equal('1')
+      expect(match('int : 1')).to.exist()
+      expect(match('int :1').sort).to.equal('int')
+      expect(match('int :1').name).to.equal('1')
 
       expect(ematch('int: 1').sort).to.equal('int')
 
-      expect(match('set(\"test\")')).to.exist()
-      expect(match('set(\"test\")').sort).to.equal('set')
-      expect(match('set(\"test\")').name).to.equal('\"test\"')
+      expect(match('set:\"test\"')).to.exist()
+      expect(match('set:\"test\"').sort).to.equal('set')
+      expect(match('set:\"test\"').name).to.equal('\"test\"')
 
       expect(ematch('set :\"test\"').sort).to.equal('set')
 
-      expect(match('form(eq(1,1))')).to.exist()
-      expect(match('form(eq(1,1))').sort).to.equal('form')
+      expect(match('(eq(1,1))')).to.exist()
+      expect(match('(eq(1,1))').sort).to.equal('form')
 
-      expect(match('set(\"120\")').sort).to.equal('set')
-      expect(match('form(\"120\" or \"35mm\")' ).sort).to.equal('form')
+      expect(match('set :\"120\"').sort).to.equal('set')
+      expect(match('(\"120\" or \"35mm\")' ).sort).to.equal('form')
       expect(ematch('\"120\" or \"35mm\"' )).to.exist()
       expect(ematch('\"120\" or \"35mm\"' ).sort).to.equal('form')
       expect(ematch('set : \"120\"' ).sort).to.equal('set')
       expect(ematch('\"120\" or mm\"' )).to_not.exist()
-      expect(match('form(\"120\" or \"35mm\")').name).to.equal('\"120\" or \"35mm\"')
+      expect(match('\"120\" or \"35mm\"').name).to.equal('\"120\" or \"35mm\"')
 
     end)
 

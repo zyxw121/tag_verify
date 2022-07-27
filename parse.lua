@@ -304,16 +304,9 @@ local function make_roll(z,get_tags)
   return function (p) --p is the callback that generates the tag-set at x
     -- for memoisation, p needs to have a name...
     return function (x)  
-      print("evaling makeroll of")
-      print(p)
-      print(p.name)
-      print("at image")
-      print(x)
       if (not z.nin_memo(x,p.name)) then
-        print("already memoised")
         return z.get_memo(x,p.name)
       else 
-        print("not memoised yet")
         local here = p.apply_at(x)
         local there = {}
         for _,image in ipairs(z.get_roll(x)) do
@@ -418,32 +411,12 @@ end
 
 parse._form = parse.make_form(myterm,myint,myset) --for internal use
 
-parse.form = function(tags,roll) --requires the entire input to be a valid formula
-  return parse.make_form(myterm, myint,myset)(tags,roll) *-1
-end
-
-parse.named_form = function(tags,roll) --requires the entire input to be a valid formula
-  return parse.with_name("form")(parse.make_form(myterm, myint,myset)(tags,roll) *-1)
-
-end
 
 parse.expression = function(tags,roll)
   local f =   parse.with_name("form")(parse._form(tags,roll)) 
   local s = w*"set"*w*":"*w* parse.with_name("set")(myset1(tags)) 
   local i = w*"int"*w*":"*w* parse.with_name("int")(myint1(tags)) 
   return (s+i+f)
-end
-parse._expression = function(tags,roll)
-  local f =   parse.with_name("form")(parse._form(tags,roll)) 
-  local s = w*"set"*w*":"*w* parse.with_name("set")(myset1(tags)) 
-  local i = w*"int"*w*":"*w* parse.with_name("int")(myint1(tags)) 
-  return (s+i+f) *-1
-end
-parse.expression1 = function(tags,roll)
-  local f = 'form('* parse.with_name("form")(parse._form(tags,roll)) *")"
-  local s = 'set(' *parse.with_name("set")(myset1(tags)) *')'
-  local i = 'int('*parse.with_name("int")(myint1(tags)) *')'
-  return s+i+f
 end
 
 parse.list_expr = function(tags,roll)
@@ -461,23 +434,18 @@ function wrap_match(p)
   return lpeg.match(p, text)
 end
 end
-
 parse.wrap_match = wrap_match
 
 parse.ematch = function(tags,roll)
- return wrap_match(parse._expression(tags,roll)) 
-end
-
-parse.fmatch = function(tags, roll)
-    return wrap_match(parse.named_form(tags, roll))
+ return wrap_match(parse.expression(tags,roll)*-1) 
 end
 
 parse.esmatch = function(tags,roll)
     return wrap_match(parse.list_expr(tags,roll))
 end
-parse.fsmatch = function(tags,roll)
-    return wrap_match(parse.list_form(tags,roll))
-end
+
+
+
 
 
 
