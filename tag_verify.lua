@@ -8,17 +8,11 @@ Enable tag system constraints and verification
 local dt = require "darktable"
 local ps = require "tag_verify/parse"
 
-
-
-
 local verbose = true
 local editing = false
 local editing_n = 0
 
-
 local rules = {}
-local memo = {}
-
 
 local function expr_to_pref_string(r)
   if (r.sort == "form") then 
@@ -51,8 +45,7 @@ local function get_tags(image)
   return image.get_tags(image)
 end
 
-local function get_rollm(memo)
-  local get_roll = function(image)
+ local get_roll = function(image)
     local n =#image.film
     roll = {}
     for i = 1,n,1 do
@@ -60,27 +53,24 @@ local function get_rollm(memo)
     end
     return roll
   end
-  local nin_memo = function(image,f)
-    return (memo[f] == nil or memo[f][image.film.id]==nil) --can be null
+
+local function make_memo(memo)
+   local nin_memo = function(image,f)
+    return (memo[f] == nil or memo[f][image.film.path]==nil) --can be null
   end
   local add_to_memo = function(image,f, val)
     if (memo[f]==nil) then memo[f] = {} end
-    memo[f][image.film.id] = val
+    memo[f][image.film.path] = val
   end
   local get_memo = function(image, f)
     if (memo[f] == nil) then return nil end
-    return memo[f][image.film.id]
+    return memo[f][image.film.path]
   end
-  return {get_roll=get_roll, nin_memo = nin_memo, add_to_memo = add_to_memo, get_memo = get_memo}
+  return {nin_memo = nin_memo, add_to_memo = add_to_memo, get_memo = get_memo}
 end
 
-local function make_match(memo)
-  return ps.ematch(get_tags, get_rollm(memo))
-end
-
-local ematch = ps.ematch(get_tags, get_rollm(memo))
-local esmatch = ps.esmatch(get_tags, get_rollm(memo))
-
+local ematch = ps.ematch(get_tags, get_roll)
+local esmatch = ps.esmatch(get_tags, get_roll)
 
 -- return data structure for script_manager
 local script_data = {}
@@ -136,10 +126,10 @@ local function apply_rule(r,image)
   end
 end
 
-local function make_validate_image(rs,image)
+local function make_validate_image(rs,memo)
   extra = {}
   for i,rule in ipairs(rs) do
-    extra[i] = apply_rule(rule,image)
+    extra[i] = apply_rule(rule,memo)
   end
   return extra
 end
@@ -148,14 +138,22 @@ end
 local function select_untagged_images(event, images)
   job = dt.gui.create_job("select badly tagged images", true, stop_job)
   local selection = {}
+  local mymemo = {}
+  local memo_cont = make_memo(mymemo)
 
   for key,image in ipairs(images) do
     if(job.valid) then
       job.percent = (key - 1)/#images
-      result = validate_image(rules, image)
-      if (not result["passed"]) then
-        table.insert(selection, image)
+
+      for _,rule in ipairs(rules) do
+      if (rule.sort == 'form') then
+        memo_cont.image = image
+        if (not rule.apply_at(memo_cont)) then
+          table.insert(selection, image)
+        end
       end
+      end
+
     else
       break
     end
@@ -199,15 +197,7 @@ function clear_rules()
 end
 
 local function make_rules_string(rs)
-  local str = ""
-  if (#rs == 0) then 
-    return ""
-  end
-  str = expr_to_pref_string(rs[1])
-  for i = 2,#rs,1 do
-    str = str .. ";"..expr_to_pref_string(rs[i])
-  end
-  return str
+  return ps.intercalate(rs, ';', expr_to_pref_string) 
 end
 
 local function rule_to_text(rule)
@@ -247,26 +237,23 @@ local function update_text_list(text_view)
       end
     end
     assert(#extra == #rules)
-    local text = ""
-    if (#rules == 0) then return 
-    end
-    text = rule_to_text(rules[1])..extra[1]
-    for i =2,#rules,1 do 
-     text = text.."\n"..rule_to_text(rules[i]) ..extra[i]
-    end
-    text_view.text = text
+    text_view.text = ps.intercalate(rules, '\n', function(r,i) return rule_to_text(r)..extra[i] end ) 
 end
 end
 
 local function on_hover(gui)
   return function(event, image)
+
+  memo_cont = make_memo({})
+  memo_cont.image = image
+
   local extra = nil
   local text = ""
   if (not image) then
     text =""
   else
     text = image.filename
-    extra = make_validate_image(rules,image)
+    extra = make_validate_image(rules,memo_cont)
   end
   gui.current_image.label = text
   gui.update_text_list(extra)
@@ -418,6 +405,7 @@ local function debug(gui)
     print(editing)
     print("editing_n: "..editing_n)
     print(dt.debug.dump(gui.rules_list))
+    print("done")
   end
 end
 

@@ -11,7 +11,7 @@ local function split(str,sep)
   return lpeg.match(p, str)
 end
 
-local function make_image(ts,j)
+local function make_image(ts,j, memo)
   if (j==nil) then
     j = 1
   end
@@ -28,33 +28,41 @@ local function make_image(ts,j)
   end
   image["film"] = {id = j}
   local function add_to_roll(y)
-    table.insert(image["film"],y)
+    table.insert(image["film"],y.image)
   end
-  image["add_to_roll"] = add_to_roll
-  return image
+  local rmemo = {}
+  memo = memo or {}
+  for i,k in pairs(memo) do
+    rmemo[i] = k
+  end
+  rmemo.image = image
+  rmemo["add_to_roll"] = add_to_roll
+  return rmemo
 
 end
 
 function tags(y) 
   return y["tags"]
 end
-function _roll(y)
+function roll(y)
   return y["film"]
 end
 
-local memo = {}
-local function nin_memo(x,f)
-  return (memo[x.film.id] == nil or memo[x.film.id][f] == nil)
+local function make_memo(memo) 
+  local function nin_memo(x,f)
+    return (memo[x.film.id] == nil or memo[x.film.id][f] == nil)
+  end
+  local function add_to_memo(x,f,v)
+    if (memo[x.film.id] == nil) then memo[x.film.id] = {}end
+    memo[x.film.id][f] = v
+  end
+  local function get_memo(x,f)
+    if (memo[x.film.id] == nil) then return nil end
+    return memo[x.film.id][f]
+  end
+
+  return {nin_memo = nin_memo, add_to_memo = add_to_memo, get_memo=get_memo}
 end
-local function add_to_memo(x,f,v)
-  if (memo[x.film.id] == nil) then memo[x.film.id] = {}end
-  memo[x.film.id][f] = v
-end
-local function get_memo(x,f)
-  if (memo[x.film.id] == nil) then return nil end
-  return memo[x.film.id][f]
-end
-local roll = {get_roll = _roll, nin_memo = nin_memo, add_to_memo = add_to_memo, get_memo=get_memo}
 
 local function tags_set(x)
   local ts = {}
@@ -185,7 +193,7 @@ describe('tag_verify', function()
       local x = make_image("test,120,a|b,a|c,a|b|f,d|e")
 
       local function match(text)
-        return lpeg.match(p.iexpr(tags), text)
+        return lpeg.match(p.int_expr(tags), text)
       end
         expect(match("100")(x)).to.equal(100)
         expect(match("num({\"test\"})")(x)).to.equal(1)
@@ -209,7 +217,7 @@ describe('tag_verify', function()
       expect(match_num("d|%")(x)).to.equal(1)
       expect(match_num("a|%")(x)).to.equal(2)
      
-      expect(match_set("%")(x)).to.equal(tags_set(x))
+      expect(match_set("%")(x)).to.equal(tags_set(x.image))
       expect(match_set("a|%") ).to.exist()
       expect(match_set("a|%")(x) ).to.exist()
       expect(match_set("a|%")(x) ).to.equal({"a|b","a|c"})
@@ -345,19 +353,27 @@ end
     end)
 
     it('roll', function()
-      local x = make_image("test,120,a|b,a|c,d|e",1)
-      local y = make_image("test,120,a|b,a|c,d|f",1)
-      x.add_to_roll(y)
+      local mymemo = {}
+      local memocont = make_memo(mymemo)
       local function match(text)
         --return lpeg.match(form, text)
-        return p.ematch(tags,roll)(text).apply_at
+        return p.ematch(tags,roll)(text)
       end
       local r = match("roll(\"a|%\")")
-      expect(match("roll(\"a|%\")")).to.exist()
-      expect(r(x)).to.exist()
-      expect(r(x)).to.equal(true)
-      expect(r(y)).to.equal(true)
-      expect(match("roll(\"d|%\")")(x)).to.equal(false)
+      local function with_memo(r, image)
+        memocont.image = image
+        return r.apply_at(memocont)
+      end
+      local x = make_image("test,120,a|b,a|c,d|e",1,memocont)
+      local y = make_image("test,120,a|b,a|c,d|f",1,memocont)
+      x.add_to_roll(y)
+            expect(match("roll(\"a|%\")")).to.exist()
+      expect(r.apply_at(x)).to.exist()
+      expect(r.apply_at(x)).to.equal(true)
+      expect(r.apply_at(y)).to.equal(true)
+      expect(((match("\"test\"").apply_at(y)))).to.equal(true)
+      expect(match("roll(\"d|%\")").apply_at(x)).to.equal(false)
+--      tprint(mymemo)
     end)
 
     it('connectives', function()
@@ -424,6 +440,7 @@ end
         expect(r.apply_at(x)).to.equal(true)
     end
     end)
+
 
 
   end)

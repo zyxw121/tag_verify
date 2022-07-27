@@ -71,7 +71,7 @@ local convert_set = parse.convert_set
 function parse.tag_set(get_tags)
   return function (t)
   return function (x)
-    local tags =  get_tags(x)
+    local tags =  get_tags(x.image)
     local matches = {}
     for _,tag in ipairs(tags) do
       if lpeg.match(lpeg.P(t),tag.name) then
@@ -164,6 +164,10 @@ parse.make_list0 = function(p,s) --returns a potentially empty list of ps
   s = s or ','
   return lpeg.Ct(w*p*w*(w*s*w*p*w)^0 + w)
 end
+parse.make_list1 = function(p,s) --returns a potentially empty list of ps with a dangling seperator
+  s = s or ','
+  return lpeg.Ct((w*p*w*s*w)^0)
+end
 
 local q_tag = quoted(lpeg.C( (tag_name_p *sep_p)^0*tag_name_p))
 parse.q_tag_list = parse.make_list0(q_tag) / tags_from_table
@@ -190,13 +194,6 @@ parse.set_p1 = function(tags)
     +  q*lpeg.C((tag*sep_p)^0) / parse.tag_set(tags) *lpeg.P"%"*q
     + "{"*parse.q_tag_list(tags) *"}" ) / higher_consolidate
 end
-
---iexpr is: int  or "tag|tag|%"
-parse.iexpr = function(tags)
-  return parse.int_p
-  + "num("*w* parse.set_p(tags) *w*")"/ parse.higher_set_to_num 
-end
-
 
 
 
@@ -300,34 +297,40 @@ local function sorted_sets_unequal(a,b)
   return false
 end
 
-local function make_roll(z,get_tags)
+local function memoise(f, x, memo)
+  if (not memo.nin_memo(f,x))then
+    return memo.get_memo(f,x)
+  else
+    local r = f(x)
+    memo.add_memo(f,x,r)
+    return r
+  end
+end
+
+local function make_roll(get_roll,get_tags)
   return function (p) --p is the callback that generates the tag-set at x
     -- for memoisation, p needs to have a name...
     return function (x)  
-      if (not z.nin_memo(x,p.name)) then
-        return z.get_memo(x,p.name)
+      if (not x.nin_memo(x.image,p.name)) then
+        return x.get_memo(x.image,p.name)
       else 
         local here = p.apply_at(x)
         local there = {}
-        for _,image in ipairs(z.get_roll(x)) do
-          local there = p.apply_at(image) 
+        for _,image in ipairs(get_roll(x.image)) do
+          local there = p.apply_at({image =image}) 
           if sorted_sets_unequal(here, there) 
             then 
-              z.add_to_memo(x,p.name, false)
+              x.add_to_memo(x.image,p.name, false)
               return false 
           end
         end
-        z.add_to_memo(x,p.name, true)
+        x.add_to_memo(x.image,p.name, true)
         return true 
       end
   end
 end
 end
 
-parse.iexpr_p = function(tags)
-  return parse.int_p
-  + "num("*w* q*parse.set_p(tags)*q *w*")"/ parse.higher_set_to_num 
-end
 
 local prim_set = parse.set_p --tags -> pattern
 
@@ -359,7 +362,7 @@ local int_expr = function(tags)
   return "num("*w *set_expr(tags) /parse.higher_set_to_num *w*")" 
     + prim_int
 end
-
+parse.int_expr = int_expr
 
 local term = function(tags,roll)
   return "eq(" *lpeg.V"CI" * ")" /make_eq
@@ -433,10 +436,5 @@ end
 parse.esmatch = function(tags,roll)
     return wrap_match(parse.list_expr(tags,roll))
 end
-
-
-
-
-
 
 return parse
