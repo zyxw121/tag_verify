@@ -51,7 +51,7 @@ The terminal tags of the above photos are therefore
 2. `places|France|Nord`
 3. `places|England`
 
-Note that being terminal is a property of a tag in a set, and `places|France|Nord` is terminal in photo 2 but not in photo 1. We see that each photo indeed has one *terminal* tag that matches `places|%`. So, the Tag Verify set expressions are only concerned with terminal tags: evaluating `"places|%"` at photo 1 would return the singleton set $\{$ `places|France|Nord|Lille` $\}$.
+Note that being terminal is a property of a tag in a set, and `places|France|Nord` is terminal in photo 2 but not in photo 1. We see that each photo indeed has one *terminal* tag that matches `places|%`. So, the Tag Verify set expressions are only concerned with terminal tags: evaluating `"places|%"` at photo 1 would return the singleton set $\{ \text{places|France|Nord|Lille} \}$.
 
 To specify that each image must be tagged with a single location, you could use the rule `eq(num("places|%"),1)`.
 
@@ -114,8 +114,6 @@ For example, if you wish to express the condition that every image in a film rol
 The plugin provides a UI interface for adding new rules. Rules may be typed into the 'new rule' entry box, and added with 'add' button. An error will pop up if the rule does not parse. The active rules appear listed in the box below. Hovering over an image will indicate whether every the active rules are valid or not. The 'edit' and 'delete' buttons allow for editing and deleting rules, and the 'clear' button will remove every added rule.
 
 Also, a 'select badly tagged' button is added to the selection module. Clicking this button will select all the images that fail at least one rule. 
-
-
 
 
 ## Install:
