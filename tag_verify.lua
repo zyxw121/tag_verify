@@ -8,7 +8,7 @@ Enable tag system constraints and verification
 local dt = require "darktable"
 local ps = require "tag_verify/parse"
 
-local verbose = true
+local verbose = false
 local editing = false
 local editing_n = 0
 
