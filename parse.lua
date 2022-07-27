@@ -329,11 +329,9 @@ parse.iexpr_p = function(tags)
   + "num("*w* q*parse.set_p(tags)*q *w*")"/ parse.higher_set_to_num 
 end
 
-local myset1 = parse.set_p
+local prim_set = parse.set_p --tags -> pattern
 
-
-
-local make_set = function(set)
+local make_set_expr = function(set)
   return function(tags)
   return lpeg.P{
     "S";
@@ -352,33 +350,26 @@ local make_set = function(set)
 end
 end
 
-local myset = make_set(myset1)
-parse.myset = myset
+local set_expr = make_set_expr(prim_set) --tags -> pattern
+parse.set_expr = set_expr
 
-local myint1 = function(tags)
-  return parse.int_p
-  + "num(" * myset(tags) / parse.higher_set_to_num *")"
+local prim_int = parse.int_p
+
+local int_expr = function(tags)
+  return "num("*w *set_expr(tags) /parse.higher_set_to_num *w*")" 
+    + prim_int
 end
 
-local myint = function(tags)
-  return parse.int_p
-  + "num(" *lpeg.V"S" / parse.higher_set_to_num *")"
-end
 
-local myterm = function(tags,roll)
+local term = function(tags,roll)
   return "eq(" *lpeg.V"CI" * ")" /make_eq
     + "leq(" *lpeg.V"CI" * ")" /make_leq
     + "eq(" *lpeg.V"CS" * ")" /make_leq
     + "subset(" *lpeg.V"CS" * ")" /make_leq --add set comparison
     + lpeg.P"true" / make_true
     + lpeg.P"false" / make_false
-    + parse.set_p(tags) / inhabited
-    + "roll(" * parse.with_name("set")(parse.set_p(tags)) *")" /make_roll(roll,tags)
-end
-
-local function myf(s,t)
-  print("s "..s)
-  print("t "..t)
+    + set_expr(tags) / inhabited
+    + "roll(" * parse.with_name("set")(set_expr(tags)) *")" /make_roll(roll,tags)
 end
 
 
@@ -409,13 +400,12 @@ end
 
 
 
-parse._form = parse.make_form(myterm,myint,myset) --for internal use
-
+parse._form = parse.make_form(term,int_expr,set_expr) --for internal use
 
 parse.expression = function(tags,roll)
   local f =   parse.with_name("form")(parse._form(tags,roll)) 
-  local s = w*"set"*w*":"*w* parse.with_name("set")(myset1(tags)) 
-  local i = w*"int"*w*":"*w* parse.with_name("int")(myint1(tags)) 
+  local s = w*"set"*w*":"*w* parse.with_name("set")(set_expr(tags)) 
+  local i = w*"int"*w*":"*w* parse.with_name("int")(int_expr(tags)) 
   return (s+i+f)
 end
 

@@ -88,7 +88,6 @@ end
 --terms are single letters, ints are ints. use for testing structure
 local tform = p.make_form(myt,myi, myt)(tags,roll) *-1
 local expr = p.expression(tags,roll)
-
 local ematch = p.ematch(tags,roll)
 
 
@@ -328,10 +327,10 @@ end
  --     tprint(lpeg.match(myset1, "union({b},{a})"))
 
 
-      expect(lpeg.match(p.myset(tags), "union({\"b\"},{\"a\"})")(x)).to.equal(tags_set("a,b"))
-      expect(lpeg.match(p.myset(tags), "{\"b\"} setor {\"a\"}")(x)).to.equal(tags_set("a,b"))
-      expect(lpeg.match(p.myset(tags), "{\"a\"} setor {\"a\"}")(x)).to.equal(tags_set("a"))
-      expect(lpeg.match(p.myset(tags), "{\"a\"} setor {\"b\",  \"a\"}")(x)).to.equal(tags_set("a,b"))
+      expect(lpeg.match(p.set_expr(tags), "union({\"b\"},{\"a\"})")(x)).to.equal(tags_set("a,b"))
+      expect(lpeg.match(p.set_expr(tags), "{\"b\"} setor {\"a\"}")(x)).to.equal(tags_set("a,b"))
+      expect(lpeg.match(p.set_expr(tags), "{\"a\"} setor {\"a\"}")(x)).to.equal(tags_set("a"))
+      expect(lpeg.match(p.set_expr(tags), "{\"a\"} setor {\"b\",  \"a\"}")(x)).to.equal(tags_set("a,b"))
 
       local A = tags_set("a")
       local B = tags_set("b")
@@ -339,10 +338,10 @@ end
 --      tprint(p.intersect(A,B))
 --      tprint(p.intersect(B,A))
 
---      tprint(lpeg.match(p.myset(tags), "{\"b\"} setand {\"a\"}")(x))
-      expect(lpeg.match(p.myset(tags), "{\"b\"} setand {\"a\"}")(x)).to.equal({})
-      expect(lpeg.match(p.myset(tags), "{\"b\" , \"a\"} setand {\"a\"}")(x)).to.equal(tags_set("a"))
-      expect(lpeg.match(p.myset(tags), "{\"b\" , \"a\"} setand {\"a\"  , \"c\"}")(x)).to.equal(tags_set("a"))
+--      tprint(lpeg.match(p.set_expr(tags), "{\"b\"} setand {\"a\"}")(x))
+      expect(lpeg.match(p.set_expr(tags), "{\"b\"} setand {\"a\"}")(x)).to.equal({})
+      expect(lpeg.match(p.set_expr(tags), "{\"b\" , \"a\"} setand {\"a\"}")(x)).to.equal(tags_set("a"))
+      expect(lpeg.match(p.set_expr(tags), "{\"b\" , \"a\"} setand {\"a\"  , \"c\"}")(x)).to.equal(tags_set("a"))
     end)
 
     it('roll', function()
